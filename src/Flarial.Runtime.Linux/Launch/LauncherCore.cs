@@ -17,7 +17,8 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
     const string Exe = "Minecraft.Windows.exe";
     static readonly TimeSpan GameWait = TimeSpan.FromSeconds(120);
 
-    public bool IsRunning => FindGamePid() is { };
+    /// <summary>A game process whose window is long gone is a stale instance, not a running game.</summary>
+    public bool IsRunning => FindGamePid() is { } pid && !GameWatch.Hung(pid);
 
     /// <summary>The wine process hosting the game: argv[0] is the NT path of the exe (umu/pressure-vessel wrappers only carry it as an argument).</summary>
     public uint? FindGamePid()

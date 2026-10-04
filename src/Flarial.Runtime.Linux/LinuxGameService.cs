@@ -97,7 +97,19 @@ public sealed class LinuxGameService : IGameService
 
     string State() => $"{InstalledVersion}|{IsRunning}";
 
-    void Poll() { var s = State(); if (s != _last) { _last = s; Raise(); } }
+    bool _cleaning;
+
+    void Poll()
+    {
+        // the window is gone but wine never exited: clean the stale instance up so the next Launch works
+        if (!_cleaning && Core.FindGamePid() is { } pid && GameWatch.Hung(pid))
+        {
+            _cleaning = true;
+            LaunchLog.Note($"game pid {pid} outlived its window by 5 s: cleaning up the stale instance");
+            Task.Run(async () => { try { await Core.KillAsync(CancellationToken.None); } finally { _cleaning = false; Raise(); } });
+        }
+        var s = State(); if (s != _last) { _last = s; Raise(); }
+    }
 
     void Raise()
     {
@@ -174,7 +186,12 @@ public sealed class LinuxGameService : IGameService
     }
     public uint? Launch()
     {
-        if (Core.FindGamePid() is { } running) return running;
+        if (Core.FindGamePid() is { } running)
+        {
+            if (!GameWatch.Hung(running)) return running;
+            LaunchLog.Note($"Launch: game pid {running} has no window, treating it as a stale instance and cleaning up");
+            Core.KillAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
         if (ActiveDir() is not { } dir) return null;
         try
         {

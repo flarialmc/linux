@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using Flarial.Runtime.Linux.Injection;
+using Flarial.Runtime.Linux.Launch;
 using Flarial.Runtime.Platform;
 
 namespace Flarial.Runtime.Linux;
@@ -14,7 +15,7 @@ public sealed class LinuxInjector : IInjector
     static readonly IInjectorCore Core = new InjectorCore(Backend.Engine);
     static string s_last = "Flarial.Client.";
 
-    public bool IsClientRunning => LinuxGameService.Core.FindGamePid() is { } pid && (Core.IsModuleLoaded(pid, "Flarial.Client.") || Core.IsModuleLoaded(pid, s_last));
+    public bool IsClientRunning => LinuxGameService.Core.FindGamePid() is { } pid && !GameWatch.Hung(pid) && (Core.IsModuleLoaded(pid, "Flarial.Client.") || Core.IsModuleLoaded(pid, s_last));
 
     /// <summary>Imports are resolved inside the prefix's system directory.</summary>
     public string SystemDirectory => @"C:\windows\system32";

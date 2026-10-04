@@ -29,6 +29,9 @@ static class LaunchLog
         }
     }
 
+    /// <summary>A free-form decision line (no phase timing).</summary>
+    public static void Note(string text) { lock (s_lock) Write("              " + text); }
+
     /// <summary>Times an async step.</summary>
     public static async System.Threading.Tasks.Task<T> Time<T>(string name, System.Threading.Tasks.Task<T> t) { try { return await t; } finally { Phase(name); } }
     public static async System.Threading.Tasks.Task Time(string name, System.Threading.Tasks.Task t) { try { await t; } finally { Phase(name); } }
