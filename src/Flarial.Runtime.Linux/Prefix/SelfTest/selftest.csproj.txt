@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><LangVersion>latest</LangVersion></PropertyGroup>
-  <PropertyGroup><W>./src/Flarial.Runtime.Linux</W></PropertyGroup>
+  <PropertyGroup><W>$(MSBuildThisFileDirectory)../..</W></PropertyGroup>
   <ItemGroup>
     <Compile Include="$(W)/Contracts.cs;$(W)/Paths.cs;$(W)/Download.cs;$(W)/Proc.cs;$(W)/Json.cs;$(W)/Settings.cs;$(W)/Prefix/*.cs" />
   </ItemGroup>
