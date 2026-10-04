@@ -163,7 +163,7 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
         var xauth = new[] { Environment.GetEnvironmentVariable("XAUTHORITY"), Path.Combine(Paths.Home, ".Xauthority"), $"/run/user/{Uid()}/.mutter-Xwaylandauth.0" }
             .FirstOrDefault(p => !string.IsNullOrEmpty(p) && File.Exists(p));
         var vkd3d = (Environment.GetEnvironmentVariable("VKD3D_CONFIG") is { Length: > 0 } c ? c + "," : "") + "force_raw_va_cbv" + (s.RayTracing ? "" : ",nodxr");
-        var overrides = "cryptbase=n,b;vrclient=;vrclient_x64=;openvr_api=;wineopenxr=;amd_ags_x64=" +
+        var overrides = "cryptbase=n,b;vrclient=;vrclient_x64=;openvr_api=;wineopenxr=;amd_ags_x64=" + (Settings.BlockWineGameInput ? ";gameinput=d" : "") +
             (Environment.GetEnvironmentVariable("WINEDLLOVERRIDES") is { Length: > 0 } o ? ";" + o : "");
 
         Dictionary<string, string?> env = new()
