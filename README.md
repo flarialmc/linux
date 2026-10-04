@@ -46,8 +46,8 @@ For the AUR package run `sudo pacman -R flarial-launcher-bin` first, then the co
 
 ## Using it
 
-1. Open the launcher and sign in to Flarial (Settings > General).
-2. Open Settings > Versions and download a Minecraft version. You will be asked to sign in to your Microsoft account.
+1. Open the launcher and sign in to Flarial (Settings > Accounts).
+2. Sign in to your Microsoft account (Settings > Accounts > Microsoft), then open Settings > Versions and download a Minecraft version.
 3. Press Launch. The first launch is slow: the engine and Steam runtime are downloaded and the Wine prefix is created. Later launches are much faster.
 
 ## Where data lives
@@ -57,7 +57,7 @@ Everything is under `~/.local/share/Flarial/Linux` (or `$XDG_DATA_HOME/Flarial/L
 | Path | Contents |
 |---|---|
 | `games/` | Downloaded Minecraft versions |
-| `compatdata/pfx` | Wine prefix; the Flarial client folder lives inside it (Settings > General > Open client folder) |
+| `compatdata/pfx` | Wine prefix; the Flarial client folder lives inside it (Settings > General > Open Client Folder) |
 | `proton/`, `umu/`, `xodus/` | Engine, umu-run and xodus-cli |
 | `xodus-home/`, `msa/`, `winegdk-preauth/` | Microsoft/Xbox login state |
 | `logs/` | Logs |
@@ -93,8 +93,10 @@ Requires the .NET 10 SDK.
 ```sh
 dotnet build src/Flarial.Launcher
 dotnet run --project src/Flarial.Launcher
-dotnet publish src/Flarial.Launcher -c Release -r linux-x64
+dotnet publish src/Flarial.Launcher -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -o publish
 ```
+
+`Native/flarial_vault.dll` and `Native/injector.exe` are prebuilt and committed (embedded resources); rebuild them with `MSVC_BIN=<path to your msvc-wine bin/x64> src/Flarial.Runtime.Linux/Native/build-vault.sh` (and `build-injector.sh`). Building them in CI is a future improvement.
 
 Developer only: `FLARIAL_LINUX_SEED_FROM=<BedrockOnLinux dir>` links an existing engine/umu/xodus/game and copies its logins instead of downloading them. Do not use it for normal installs.
 
