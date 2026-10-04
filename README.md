@@ -19,7 +19,7 @@ The Flarial Client launcher for Minecraft Bedrock Edition (Windows GDK build), r
 - `python3`, `zstd`, `openssl`, `tar`, and `curl` or `wget`
 - A Microsoft account that owns Minecraft for Windows (Bedrock)
 - Disk space: engine ~860 MB, Steam Linux Runtime ~900 MB, plus the game itself
-- A desktop session (X11/XWayland) and `xdg-open`; optional `secret-tool` (libsecret) for credential storage
+- A desktop session (X11/XWayland) and `xdg-open`; `xprop` (`xorg-xprop` / `x11-utils`) to clean up a game process that outlived its window; optional `secret-tool` (libsecret) for credential storage
 
 ## Install
 

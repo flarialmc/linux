@@ -18,9 +18,18 @@ static class ReadyGate
     /// <summary>The lock file was deleted: the main menu has loaded.</summary>
     public static bool Deleted => s_deleted;
 
+    static DateTime s_started;
+
+    /// <summary>
+    /// A launch is waiting for the main menu (within the inject wait cap, lock not yet deleted). GameWatch never calls the game hung then:
+    /// the window may legitimately be absent/recreated while the engine loads, and the cap (not the hang rule) bounds the wait.
+    /// </summary>
+    public static bool Waiting => s_watcher is not null && !s_deleted && DateTime.UtcNow - s_started < TimeSpan.FromSeconds(Settings.InjectDelaySeconds + 5);
+
     public static void Start()
     {
         Stop();
+        s_started = DateTime.UtcNow;
         s_seen = s_deleted = false;
         try
         {

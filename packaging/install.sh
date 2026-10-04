@@ -109,6 +109,7 @@ if [ -n "$missing" ]; then
   echo "error: missing required dependencies:$missing" >&2
   exit 1
 fi
+command -v xprop >/dev/null 2>&1 || warn "xprop not found; the launcher cannot detect a game process that outlived its window ($(hint xorg-xprop x11-utils xprop xprop))"
 if command -v vulkaninfo >/dev/null 2>&1; then
   vulkaninfo --summary >/dev/null 2>&1 || warn "vulkaninfo failed; Vulkan may be unusable (games need a working Vulkan driver, e.g. $(hint vulkan-icd-loader libvulkan1 vulkan-loader vulkan-loader))"
 else

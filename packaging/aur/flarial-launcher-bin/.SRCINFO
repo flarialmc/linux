@@ -11,6 +11,7 @@ pkgbase = flarial-launcher-bin
 	depends = vulkan-icd-loader
 	depends = tar
 	depends = curl
+	depends = xorg-xprop
 	optdepends = libsecret: store login tokens in the system keyring
 	optdepends = vulkan-tools: diagnostics
 	source = flarial-launcher

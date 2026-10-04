@@ -111,8 +111,9 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
     }
 
     /// <summary>
-    /// umu-run is a zipapp: python recompiles all of its modules on every start (no .pyc cache inside a zip), ~170 ms. Extracted next to it
-    /// (once per umu-run size+mtime) python caches the bytecode and runs the directory. Falls back to the zipapp on any problem.
+    /// umu-run is a zipapp: python recompiles all of its modules on every start (no .pyc cache inside a zip), ~170 ms. Extracted into our own
+    /// cache dir (never next to umu-run: with the dev seed that is a symlink into another install) once per umu-run size+mtime (+sha256
+    /// recorded in the stamp), python caches the bytecode and runs the directory. Falls back to the zipapp on any problem.
     /// </summary>
     internal static string ExtractUmu()
     {
@@ -120,11 +121,11 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
         {
             var zip = new FileInfo(Paths.UmuRun);
             if (!zip.Exists) return Paths.UmuRun;
-            var dir = Paths.UmuRun + ".d"; var stamp = Path.Combine(dir, ".stamp"); var want = $"{zip.Length}-{zip.LastWriteTimeUtc.Ticks}";
-            if (File.Exists(stamp) && File.ReadAllText(stamp) == want && File.Exists(Path.Combine(dir, "__main__.py"))) return dir;
+            var dir = Path.Combine(Paths.Cache, "umu-run.d"); var stamp = Path.Combine(dir, ".stamp"); var want = $"{zip.Length}-{zip.LastWriteTimeUtc.Ticks}";
+            if (File.Exists(stamp) && File.ReadAllText(stamp).StartsWith(want + "-", StringComparison.Ordinal) && File.Exists(Path.Combine(dir, "__main__.py"))) return dir;
             var tmp = dir + ".tmp"; if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
             System.IO.Compression.ZipFile.ExtractToDirectory(Paths.UmuRun, tmp);
-            File.WriteAllText(Path.Combine(tmp, ".stamp"), want);
+            File.WriteAllText(Path.Combine(tmp, ".stamp"), want + "-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Paths.UmuRun)))[..16]);
             if (Directory.Exists(dir)) Directory.Delete(dir, true);
             Directory.Move(tmp, dir);
             return dir;

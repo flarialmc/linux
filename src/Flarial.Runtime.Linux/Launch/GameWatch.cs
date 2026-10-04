@@ -37,6 +37,7 @@ static class GameWatch
     /// <summary>True when the game process has had no window for several seconds after having one (or for a minute since it started).</summary>
     public static bool Hung(uint pid)
     {
+        if (ReadyGate.Waiting) return false; // startup in progress (<= inject wait cap): after it, the "never shown for 60 s" rule applies
         lock (s_lock)
         {
             var now = DateTime.UtcNow;
