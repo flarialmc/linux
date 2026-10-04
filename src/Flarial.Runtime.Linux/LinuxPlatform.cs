@@ -19,10 +19,17 @@ public static class LinuxPlatform
     {
         "updater" => Update.UpdaterSelfTest.RunAsync(),
         "engine" => Engine.EngineSelfTest.RunAsync(),
+        "umu" => System.Threading.Tasks.Task.FromResult(Launch.LauncherCore.ExtractUmu() is var d && d.EndsWith(".d") ? 0 : 1),
         "xodus" => Xodus.XodusSelfTest.RunAsync(),
         "hive" => System.Threading.Tasks.Task.FromResult(Prefix.HiveEdit.SetString(Environment.GetEnvironmentVariable("FLARIAL_HIVE")!, @"Software\\Wine\\WineGDK", "RefreshToken", Environment.GetEnvironmentVariable("FLARIAL_HIVE_TOKEN")) ? 0 : 1),
         _ => System.Threading.Tasks.Task.FromResult(2)
     };
+
+    /// <summary>Starts a launch.log timeline at the UI click (the backend continues it).</summary>
+    public static void LaunchBegin(string what) => Launch.LaunchLog.Begin(what);
+
+    /// <summary>Adds a UI-side phase to launch.log.</summary>
+    public static void LaunchPhase(string name) => Launch.LaunchLog.Phase(name);
 
     /// <summary>Registers the Linux backend. Call once at startup.</summary>
     public static void Use()

@@ -14,9 +14,22 @@ static class LaunchLog
     /// <summary>Length of minecraft.log when this launch started: readiness is searched only after it.</summary>
     public static long GameLogOffset { get; set; } = -1;
 
+    static long s_beganTicks;
+
     public static void Begin(string what)
     {
-        lock (s_lock) { s_clock.Restart(); s_prev = 0; Write($"---- {what}"); }
+        lock (s_lock) { s_clock.Restart(); s_prev = 0; s_beganTicks = Environment.TickCount64; Write($"---- {what}"); }
+    }
+
+    /// <summary>The UI began this launch at the click (a few seconds ago): continue its clock instead of restarting it. Consumed once.</summary>
+    public static bool TakeFresh()
+    {
+        lock (s_lock)
+        {
+            var fresh = s_beganTicks != 0 && Environment.TickCount64 - s_beganTicks < 30_000;
+            s_beganTicks = 0;
+            return fresh;
+        }
     }
 
     public static void Phase(string name)

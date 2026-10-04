@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Flarial.Runtime.Game;
 
@@ -30,12 +31,18 @@ sealed class InjectionSession
         return new(paths);
     }
 
-    internal static bool Launch(ModificationLibrary library)
+    internal static bool Launch(ModificationLibrary library, Task<bool>? prepared = null)
     {
+        // the game takes seconds to start and injection happens after it is ready: verify/download the DLL meanwhile
+        var game = prepared is null ? null : Task.Run(Platform.Platform.Game.Launch);
+
+        if (prepared is { } && !prepared.GetAwaiter().GetResult())
+            return false;
+
         if (Create(library) is not { } session)
             return false;
 
-        if (Platform.Platform.Game.Launch() is not { } processId)
+        if ((game is null ? Platform.Platform.Game.Launch() : game.GetAwaiter().GetResult()) is not { } processId)
             return false;
 
         return Platform.Platform.Injector.Inject(session._paths, processId);

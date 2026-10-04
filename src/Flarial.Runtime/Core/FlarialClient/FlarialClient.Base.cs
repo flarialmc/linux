@@ -33,9 +33,10 @@ public abstract partial class FlarialClient
 
     public static bool IsRunning => Platform.Platform.Injector.IsClientRunning;
 
-    public bool Launch()
+    /// <param name="prepared">Optional verify/download of this client still in flight: the game is launched concurrently and injection waits for it.</param>
+    public bool Launch(Task<bool>? prepared = null)
     {
-        if (!IsRunning && InjectionSession.Launch(new(FileName)))
+        if (!IsRunning && InjectionSession.Launch(new(FileName), prepared))
         {
             _ = PostAnalyticsAsync();
             return true;

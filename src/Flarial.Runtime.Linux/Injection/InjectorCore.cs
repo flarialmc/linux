@@ -42,21 +42,23 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
     static readonly System.Text.RegularExpressions.Regex Swapchain = new(@"dxgi_vk_swap_chain_init: Creating swapchain \((\d+) x (\d+)\)", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
-    /// Waits until the game has a real window/renderer instead of sleeping a fixed time: vkd3d-proton (VKD3D_DEBUG=info, stderr -> minecraft.log)
-    /// logs "Creating swapchain (W x H)" when the game's presentable window exists (the 100x100 one is a dummy). Then a short settle.
-    /// <paramref name="cap"/> is the most we wait (the old fixed delay); no signal by then -> inject anyway, as before. False = game died.
+    /// Windows launcher parity: inject once the game's main menu has loaded (menu_load_lock deleted, see ReadyGate), no fixed delay.
+    /// Fallback when the game never creates that file: the first real (&gt;100x100) vkd3d swapchain, the Linux equivalent of the
+    /// "window is visible" check the Windows launcher uses for sideloaded installs. <paramref name="cap"/> is the most we wait
+    /// (no signal by then: inject anyway). False = game died.
     /// </summary>
     static async Task<bool> WaitReady(int pid, TimeSpan cap, CancellationToken ct)
     {
-        if (cap <= TimeSpan.Zero) return ProcScan.Alive(pid) && !WinedbgRunning();
+        var mode = Settings.InjectWait;
+        if (cap <= TimeSpan.Zero || mode == "none") return ProcScan.Alive(pid) && !WinedbgRunning();
         var log = Path.Combine(Paths.Logs, "minecraft.log");
         var pos = LaunchLog.GameLogOffset;
-        var settle = TimeSpan.FromMilliseconds(Settings.InjectSettleMs);
-        var end = DateTime.UtcNow + cap; DateTime? signal = null; var tail = "";
+        var end = DateTime.UtcNow + cap; var tail = ""; var swapchain = false;
         while (true)
         {
             if (!ProcScan.Alive(pid) || WinedbgRunning()) return false;
-            if (signal is null && pos >= 0)
+            if (mode == "menu" && ReadyGate.Deleted) { LaunchLog.Phase("ready: menu_load_lock deleted (main menu loaded)"); break; }
+            if (!swapchain && pos >= 0)
                 try
                 {
                     using var f = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -66,13 +68,16 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
                     var nl = text.LastIndexOf('\n');
                     pos = f.Length; tail = nl >= 0 ? text[(nl + 1)..] : text; // keep a partial last line for the next read
                     foreach (System.Text.RegularExpressions.Match m in Swapchain.Matches(text))
-                        if (int.Parse(m.Groups[1].Value) > 100 && int.Parse(m.Groups[2].Value) > 100) { signal = DateTime.UtcNow; LaunchLog.Phase($"ready signal: swapchain {m.Groups[1]}x{m.Groups[2]} (settling {settle.TotalMilliseconds:0} ms)"); break; }
+                        if (int.Parse(m.Groups[1].Value) > 100 && int.Parse(m.Groups[2].Value) > 100) { swapchain = true; LaunchLog.Phase($"swapchain {m.Groups[1]}x{m.Groups[2]} (window exists)"); break; }
                 }
                 catch { }
-            if (signal is { } s && DateTime.UtcNow - s >= settle) return true;
-            if (DateTime.UtcNow >= end) { LaunchLog.Phase("no ready signal within the wait cap, injecting anyway"); return true; }
-            await Task.Delay(250, ct);
+            // the game does not use menu_load_lock (never created): the window is the signal
+            if (swapchain && (mode == "swapchain" || !ReadyGate.Seen)) { LaunchLog.Phase("ready: window visible, no menu_load_lock"); break; }
+            if (DateTime.UtcNow >= end) { LaunchLog.Phase("no ready signal within the wait cap, injecting anyway"); break; }
+            await Task.Delay(50, ct);
         }
+        if (Settings.InjectSettleMs is > 0 and var settle) await Task.Delay(settle, ct);
+        return ProcScan.Alive(pid) && !WinedbgRunning();
     }
 
     static string ToWine(string path) => path.Length > 2 && path[1] == ':' && path[2] == '\\' ? path : "Z:" + Path.GetFullPath(path).Replace('/', '\\');
@@ -92,10 +97,21 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
 
         var env = new Dictionary<string, string?> { ["WINEPREFIX"] = Paths.Prefix, ["WINEESYNC"] = "1", ["WINEFSYNC"] = "1", ["WINEDEBUG"] = "-all" };
         var info = Proc.Info(engine.Wine, [Paths.Injector, "Minecraft.Windows.exe", .. libraries.Select(ToWine)], env);
-        var code = await Proc.RunAsync(info, Path.Combine(Paths.Logs, "injector.log"), TimeSpan.FromSeconds(60 + 5 * libraries.Count));
+        // a process that was only just created may not be openable yet (not found / OpenProcess / CreateRemoteThread fail): retry fast, not a fixed sleep
+        var retryEnd = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        int code;
+        while (true)
+        {
+            code = await Proc.RunAsync(info, Path.Combine(Paths.Logs, "injector.log"), TimeSpan.FromSeconds(60 + 5 * libraries.Count));
+            if (code is not (3 or 4 or 6) || DateTime.UtcNow >= retryEnd || !ProcScan.Alive(pid)) break;
+            LaunchLog.Phase($"injector exit {code}, retrying");
+            await Task.Delay(100, ct);
+        }
         LaunchLog.Phase($"injector.exe finished (exit {code})");
         if (code != 0) return new(false, code, Describe(code));
-        return await GameSurvives(pid, TimeSpan.FromMilliseconds(1500), ct) ? new(true, 0, "Injected.") : new(false, 0, "Minecraft exited or crashed after injection.");
+        // non-blocking: report success now, log a crash right after injection from the background
+        _ = Task.Run(async () => { if (!await GameSurvives(pid, TimeSpan.FromMilliseconds(1500), CancellationToken.None)) LaunchLog.Phase("game exited or crashed within 1.5 s after injection"); });
+        return new(true, 0, "Injected.");
     }
 
     static string Describe(int code) => code switch
