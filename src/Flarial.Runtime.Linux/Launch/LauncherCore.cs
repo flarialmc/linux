@@ -136,7 +136,7 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
             ["PROTON_PREFER_SDL"] = "1",
             ["FLARIAL_UMU_RUN"] = Paths.UmuRun,
             ["FLARIAL_EXE_NAME"] = Exe,
-            ["WINEDEBUG"] = "-all",
+            ["WINEDEBUG"] = "-all,+loaddll", // module bases: resolves the address in an "Unhandled page fault" line to a DLL
         };
         if (xauth is { }) env["XAUTHORITY"] = xauth;
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"))) env["WINE_DISABLE_VULKAN_OPWR"] = "1";
