@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Flarial Launcher
+Comment=Minecraft Bedrock client launcher
+Exec=flarial-launcher
+Icon=flarial-launcher
+Terminal=false
+Categories=Game;
+StartupWMClass=Flarial.Launcher

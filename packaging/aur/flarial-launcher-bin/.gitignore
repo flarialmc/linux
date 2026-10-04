@@ -1,0 +1,5 @@
+install.sh
+flarial-launcher.png
+pkg/
+src/
+*.pkg.tar.*

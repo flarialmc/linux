@@ -1,0 +1,9 @@
+#!/bin/sh
+# Bootstrap: make sure the per-user launcher exists, then run it.
+# Updates are handled by the launcher's own self-updater.
+exe=${XDG_DATA_HOME:-$HOME/.local/share}/Flarial/Linux/launcher/current/Flarial.Launcher
+if [ ! -x "$exe" ]; then
+  echo "Flarial Launcher: installing user copy ..." >&2
+  /usr/share/flarial-launcher/install.sh --quiet || { echo "Flarial Launcher: install failed" >&2; exit 1; }
+fi
+exec "$exe" "$@"

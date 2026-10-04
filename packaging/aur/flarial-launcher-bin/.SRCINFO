@@ -1,0 +1,25 @@
+pkgbase = flarial-launcher-bin
+	pkgdesc = Flarial Launcher for Linux (bootstrap; installs and self-updates per user)
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://flarial.xyz
+	arch = x86_64
+	license = GPL-3.0-only
+	depends = python
+	depends = zstd
+	depends = openssl
+	depends = vulkan-icd-loader
+	depends = tar
+	depends = curl
+	optdepends = libsecret: store login tokens in the system keyring
+	optdepends = vulkan-tools: diagnostics
+	source = flarial-launcher
+	source = flarial-launcher.desktop
+	source = flarial-launcher.png
+	source = install.sh
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = flarial-launcher-bin

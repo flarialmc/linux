@@ -1,0 +1,23 @@
+# Maintainer: Flarial <https://github.com/flarialmc>
+pkgname=flarial-launcher-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Flarial Launcher for Linux (bootstrap; installs and self-updates per user)'
+arch=(x86_64)
+url='https://flarial.xyz'
+license=(GPL-3.0-only)
+depends=(python zstd openssl vulkan-icd-loader tar curl)
+optdepends=('libsecret: store login tokens in the system keyring'
+            'vulkan-tools: diagnostics')
+source=(flarial-launcher
+        flarial-launcher.desktop
+        flarial-launcher.png
+        install.sh)
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+  install -Dm755 flarial-launcher "$pkgdir/usr/bin/flarial-launcher"
+  install -Dm755 install.sh "$pkgdir/usr/share/flarial-launcher/install.sh"
+  install -Dm644 flarial-launcher.desktop "$pkgdir/usr/share/applications/flarial-launcher.desktop"
+  install -Dm644 flarial-launcher.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/flarial-launcher.png"
+}
