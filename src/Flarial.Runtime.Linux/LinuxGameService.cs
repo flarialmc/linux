@@ -15,6 +15,8 @@ public sealed class LinuxGameService : IGameService
 {
     internal static readonly ILauncherCore Core = new LauncherCore(Backend.Engine, Backend.Xodus, Backend.Prefix, Backend.Xbox);
     internal static DateTime LastLaunchUtc;
+    internal static LinuxGameService? Current;
+    public LinuxGameService() => Current = this;
 
     public bool IsGamingServicesInstalled => true; // Windows-only concept
     public bool RequiresInstalledGame => false;    // installing a version creates the install on Linux
