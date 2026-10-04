@@ -46,7 +46,7 @@ The engine tarball carries its own license and provenance files under `files/sha
 
 | Font | License |
 |---|---|
-| [Space Grotesk](https://github.com/floriankarsten/space-grotesk) | SIL OFL 1.1 |
+| [Space Grotesk](https://github.com/floriankarsten/space-grotesk) | SIL OFL 1.1; license text: `src/Flarial.Launcher/Resources/OFL-SpaceGrotesk.txt` |
 
 ## Not included
 
