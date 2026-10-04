@@ -31,7 +31,15 @@ for e in "${entries[@]}"; do
 done
 [[ -n "$target" ]] || { echo "flarial: no executable passed by xodus-cli run" >&2; exit 1; }
 [[ -n "$new" ]] && export WINE_DLL_FILE_MAP="${new%|}"
-ts "staged decrypted exe, exec umu-run"
+ts "staged decrypted exe"
+# the launcher may have started xodus before its Xbox session / prefix prep finished: wait (up to ~6 min) for the file that completes the env
+if [[ -n "${FLARIAL_GO_FILE:-}" ]]; then
+  for ((i=0; i<18000; i++)); do [[ -e "$FLARIAL_GO_FILE" ]] && break; sleep 0.02; done
+  [[ -e "$FLARIAL_GO_FILE" ]] || { echo "flarial: launcher never signalled go" >&2; exit 1; }
+  # shellcheck disable=SC1090
+  source "$FLARIAL_GO_FILE"; rm -f "$FLARIAL_GO_FILE"
+  ts "go received"
+fi
 export HOME="${FLARIAL_REAL_HOME:-$HOME}"
 for v in CONFIG_HOME CACHE_HOME DATA_HOME STATE_HOME; do
   r="FLARIAL_REAL_XDG_$v"

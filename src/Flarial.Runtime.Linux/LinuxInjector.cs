@@ -28,7 +28,7 @@ public sealed class LinuxInjector : IInjector
     public bool Inject(IReadOnlyList<string> libraries, uint processId)
     {
         var dllPath = libraries[^1];
-        // the configured delay counts from a launch we did ourselves; an already running game needs none
+        // the wait cap counts from a launch we did ourselves; an already running game needs none
         var wait = TimeSpan.FromSeconds(Settings.InjectDelaySeconds) - (DateTime.UtcNow - LinuxGameService.LastLaunchUtc);
         if (wait < TimeSpan.Zero) wait = TimeSpan.Zero;
         // api-ms-win-* / ext-ms-win-* are virtual api-set names the loader resolves itself: there is no such file in system32, so loading

@@ -34,7 +34,8 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
         if (IsRunning) throw new InvalidOperationException("Minecraft is already running.");
         if (!File.Exists(Path.Combine(gameDir, Exe))) throw new FileNotFoundException("Game executable not found.", Path.Combine(gameDir, Exe));
 
-        LaunchLog.Begin("launch " + gameDir);
+        if (LaunchLog.TakeFresh()) LaunchLog.Phase("LaunchAsync entered " + gameDir); else LaunchLog.Begin("launch " + gameDir);
+        ReadyGate.Start();
         var mlog = Path.Combine(Paths.Logs, "minecraft.log");
         LaunchLog.GameLogOffset = File.Exists(mlog) ? new FileInfo(mlog).Length : 0;
         LaunchLog.Phase("settings loaded (diagnostics=" + settings.Diagnostics + ")");
@@ -46,23 +47,53 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
             catch (OperationCanceledException) { throw; }
             catch { return new XboxSession(false, null, null, null); }
         }, ct);
+        var umuEntry = Paths.UmuRun;
         var prep = Task.Run(async () =>
         {
             await LaunchLog.Time("prefix ensure setup", prefix.EnsureSetupAsync(null, ct));
             await LaunchLog.Time("prefix prepare game (cacert/gdk deps/gameinput)", prefix.PrepareGameAsync(gameDir, null, ct));
             LinkContent(gameDir);
             LaunchLog.Phase("content link");
+            umuEntry = ExtractUmu();
+            LaunchLog.Phase("umu entry ready (" + (umuEntry == Paths.UmuRun ? "zipapp" : "extracted") + ")");
         }, ct);
-        var session = await LaunchLog.Time("xbox refresh (parallel)", xboxTask);
-        await prep;
-        await LaunchLog.Time($"set refresh token (online={session.Online})", prefix.SetRefreshTokenAsync(session.RefreshToken, ct));
-
         WriteWrapper();
-        var env = BuildEnv(session, settings);
-        env["FLARIAL_LAUNCH_LOG"] = Path.Combine(Paths.Logs, "launch.log");
         Directory.CreateDirectory(Paths.Logs);
-        using var chain = xodus.StartRun(gameDir, Paths.Wrapper, env, Paths.Content, Path.Combine(Paths.Logs, "minecraft.log"));
-        LaunchLog.Phase("xodus-cli run started (decrypt + licence check, then wrapper, then umu)");
+        // xodus decrypt + licence check (~1.6 s) needs neither the Xbox session nor the prefix prep: start it right away on a ready prefix.
+        // The wrapper waits for the "go" file (session-dependent env + umu entry) before it execs umu, so the network/prep work hides under the decrypt.
+        var goFile = Path.Combine(Paths.Run, "launch-go");
+        try { File.Delete(goFile); } catch { }
+        System.Diagnostics.Process? chain = null;
+        System.Diagnostics.Process Start(XboxSession session)
+        {
+            var env = BuildEnv(session, settings);
+            env["FLARIAL_GO_FILE"] = goFile;
+            env["FLARIAL_LAUNCH_LOG"] = Path.Combine(Paths.Logs, "launch.log");
+            return xodus.StartRun(gameDir, Paths.Wrapper, env, Paths.Content, Path.Combine(Paths.Logs, "minecraft.log"));
+        }
+        var early = prefix.IsReady;
+        if (early)
+        {
+            LinkContent(gameDir); // xodus runs with Paths.Content as its working directory
+            chain = Start(new XboxSession(false, null, null, null));
+            LaunchLog.Phase("xodus-cli run started early (decrypt + licence check, then wrapper waits for go)");
+        }
+        try
+        {
+            var session = await LaunchLog.Time("xbox refresh (parallel)", xboxTask);
+            await prep;
+            await LaunchLog.Time($"set refresh token (online={session.Online})", prefix.SetRefreshTokenAsync(session.RefreshToken, ct));
+            var go = $"export FLARIAL_UMU_RUN='{umuEntry}'\n" + (session.Online && session.DeviceJsonPath is { } dj ? $"export WINEGDK_PREAUTH_DEVICE='Z:{dj.Replace('/', '\\')}'\n" : "unset WINEGDK_PREAUTH_DEVICE\n");
+            File.WriteAllText(goFile + ".tmp", go); File.Move(goFile + ".tmp", goFile, true);
+            LaunchLog.Phase("go file written (session + umu entry)");
+            if (chain is null) { chain = Start(session); LaunchLog.Phase("xodus-cli run started (decrypt + licence check, then wrapper, then umu)"); }
+        }
+        catch
+        {
+            try { File.WriteAllText(goFile, "exit 1\n"); } catch { } // release the waiting wrapper
+            throw;
+        }
+        using var _chain = chain!;
 
         var deadline = DateTime.UtcNow + GameWait;
         DateTime? exited = null;
@@ -71,11 +102,33 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
             ct.ThrowIfCancellationRequested();
             if (FindGamePid() is { } pid) { LaunchLog.Phase($"game process found (pid {pid})"); return pid; }
             // umu may hand off and exit while wine keeps starting; give it a moment before giving up.
-            if (chain.HasExited) { exited ??= DateTime.UtcNow; if (DateTime.UtcNow - exited > TimeSpan.FromSeconds(3)) { LaunchLog.Phase("chain exited, no game process"); return null; } }
+            if (chain!.HasExited) { exited ??= DateTime.UtcNow; if (DateTime.UtcNow - exited > TimeSpan.FromSeconds(3)) { LaunchLog.Phase("chain exited, no game process"); return null; } }
             await Task.Delay(150, ct);
         }
         LaunchLog.Phase("timed out waiting for the game process");
         return null;
+    }
+
+    /// <summary>
+    /// umu-run is a zipapp: python recompiles all of its modules on every start (no .pyc cache inside a zip), ~170 ms. Extracted next to it
+    /// (once per umu-run size+mtime) python caches the bytecode and runs the directory. Falls back to the zipapp on any problem.
+    /// </summary>
+    internal static string ExtractUmu()
+    {
+        try
+        {
+            var zip = new FileInfo(Paths.UmuRun);
+            if (!zip.Exists) return Paths.UmuRun;
+            var dir = Paths.UmuRun + ".d"; var stamp = Path.Combine(dir, ".stamp"); var want = $"{zip.Length}-{zip.LastWriteTimeUtc.Ticks}";
+            if (File.Exists(stamp) && File.ReadAllText(stamp) == want && File.Exists(Path.Combine(dir, "__main__.py"))) return dir;
+            var tmp = dir + ".tmp"; if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
+            System.IO.Compression.ZipFile.ExtractToDirectory(Paths.UmuRun, tmp);
+            File.WriteAllText(Path.Combine(tmp, ".stamp"), want);
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            Directory.Move(tmp, dir);
+            return dir;
+        }
+        catch { return Paths.UmuRun; }
     }
 
     /// <summary>Paths.Content -> gameDir (the launch cwd and the NT path the wrapper passes to umu).</summary>

@@ -7,6 +7,7 @@ using Flarial.Launcher.Management;
 using Flarial.Launcher.Models;
 using Flarial.Launcher.Types;
 using Flarial.Runtime.Core;
+using Flarial.Runtime.Linux;
 using Flarial.Runtime.Game;
 using Flarial.Runtime.Versions;
 using ReactiveUI;
@@ -48,6 +49,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
     async Task OnLaunchAsync()
     {
         IsLaunching = true;
+        LinuxPlatform.LaunchBegin("click");
         try
         {
             var path = _settings.CustomDllPath;
@@ -64,8 +66,10 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
                 return;
             }
 
+            LinuxPlatform.LaunchPhase("ui: gaming services check");
             var isRunning = Minecraft.IsRunning;
             var isInstalled = Minecraft.IsInstalled;
+            LinuxPlatform.LaunchPhase("ui: running/installed check");
 
             if (isInstalled && !isRunning)
             {
@@ -98,6 +102,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
                 }
 
                 LauncherStatus = "Launching...";
+                LinuxPlatform.LaunchPhase("ui: custom dll checked");
                 if (!await Task.Run(() => Injector.Launch(library)))
                 {
                     await LaunchFailureDialog._.ShowAsync();
@@ -110,21 +115,28 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
             if (beta && !await ClientBetaActiveDialog._.ShowAsync())
                 return;
 
-            LauncherStatus = "Verifying...";
-            if (!await client.DownloadAsync(this))
-            {
-                await ClientUpdateFailureDialog._.ShowAsync();
-                return;
-            }
-
             if (FlarialClient.IsRunning)
             {
                 await ClientAlreadyInjectedDialog._.ShowAsync();
                 return;
             }
 
+            // verify/download the client DLL while the game starts: injection happens seconds later and waits for it
             LauncherStatus = "Launching...";
-            if (!await Task.Run(client.Launch))
+            var prepared = Task.Run(async () =>
+            {
+                try { return await client.DownloadAsync(this); }
+                finally { LinuxPlatform.LaunchPhase("ui: client dll verified (parallel with game start)"); }
+            });
+            var launched = Task.Run(() => client.Launch(prepared));
+
+            if (!await prepared)
+            {
+                await ClientUpdateFailureDialog._.ShowAsync();
+                return;
+            }
+
+            if (!await launched)
             {
                 await LaunchFailureDialog._.ShowAsync();
                 return;
