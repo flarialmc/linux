@@ -23,7 +23,7 @@ jobs:
         env:
           MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [[ "$MESSAGE" != 'release(linux):'* ]]; then
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [[ "$MESSAGE" != 'release:'* ]]; then
             echo "Not a release commit, cancelling."
             gh run cancel "${{ github.run_id }}"
             gh run watch "${{ github.run_id }}"

@@ -102,7 +102,7 @@ Developer only: `FLARIAL_LINUX_SEED_FROM=<BedrockOnLinux dir>` links an existing
 
 ## Releasing
 
-Pushing a commit whose subject starts with `release(linux):` triggers the CI release. See [docs/updates.md](docs/updates.md).
+Pushing a commit whose subject starts with `release:` triggers the CI release. See [docs/updates.md](docs/updates.md).
 
 ## Contributing
 
