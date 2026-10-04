@@ -26,6 +26,13 @@ static class Program
         if (args.Length > 0 && args[0].StartsWith("--selftest-"))
             Environment.Exit(LinuxPlatform.SelfTestAsync(args[0]["--selftest-".Length..]).GetAwaiter().GetResult());
 
+        if (args.Length > 0 && args[0] == "--install") Environment.Exit(Flarial.Runtime.Linux.Update.LauncherUpdater.SelfInstall());
+        if (Flarial.Runtime.Linux.Update.LauncherUpdater.ForRunningInstall() is { } updater)
+        {
+            if (updater.RollbackIfUnhealthy()) { Flarial.Runtime.Linux.Update.LauncherUpdater.SpawnLauncher(); return; }
+            updater.MarkStarted();
+        }
+
         for (var index = 0; index < args.Length; index++)
             switch (args[index])
             {

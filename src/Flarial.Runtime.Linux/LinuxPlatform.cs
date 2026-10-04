@@ -17,6 +17,7 @@ public static class LinuxPlatform
     /// <summary>Dev checks (--selftest-engine / --selftest-xodus); returns the exit code.</summary>
     public static System.Threading.Tasks.Task<int> SelfTestAsync(string name) => name switch
     {
+        "updater" => Update.UpdaterSelfTest.RunAsync(),
         "engine" => Engine.EngineSelfTest.RunAsync(),
         "xodus" => Xodus.XodusSelfTest.RunAsync(),
         "hive" => System.Threading.Tasks.Task.FromResult(Prefix.HiveEdit.SetString(Environment.GetEnvironmentVariable("FLARIAL_HIVE")!, @"Software\\Wine\\WineGDK", "RefreshToken", Environment.GetEnvironmentVariable("FLARIAL_HIVE_TOKEN")) ? 0 : 1),

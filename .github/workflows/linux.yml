@@ -1,0 +1,120 @@
+name: Linux
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LINUX_UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
+      CDN_URL: https://cdn.flarial.xyz/launcher/linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [[ "$MESSAGE" != 'release(linux):'* ]]; then
+            echo "Not a release commit, cancelling."
+            gh run cancel "${{ github.run_id }}"
+            gh run watch "${{ github.run_id }}"
+            exit 0
+          fi
+
+          echo "A release commit, proceeding."
+
+      - name: .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: latest
+
+      - name: Bump
+        run: |
+          echo "Bumping launcher version with build date."
+
+          Version="$(date -u +%Y).$((10#$(date -u +%m))).$((10#$(date -u +%d))).$((10#$(date -u +%H%M)))"
+          echo "$Version" > version.txt
+          echo "VERSION=$Version" >> "$GITHUB_ENV"
+
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@example.com"
+
+          git add version.txt
+          git commit -m "Version (linux) -> '$Version'"
+          git push
+
+      - name: Build
+        run: |
+          dotnet publish src/Flarial.Launcher -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -o publish
+
+      - name: Package
+        run: |
+          mkdir Flarial.Launcher
+          cp publish/Flarial.Launcher publish/*.so publish/version.txt Flarial.Launcher/
+          cp assets/flarial-launcher.png assets/flarial-launcher.desktop Flarial.Launcher/
+          chmod +x Flarial.Launcher/Flarial.Launcher
+          tar --zstd -cf Flarial.Launcher.Linux.tar.zst Flarial.Launcher
+
+      - name: Sign
+        run: |
+          printf '%s\n' "$LINUX_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/key.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Flarial.Launcher.Linux.tar.zst.sig Flarial.Launcher.Linux.tar.zst
+          rm -f "$RUNNER_TEMP/key.pem"
+
+          cat > pub.pem <<'KEY'
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyE2XQRgyEM/Gy+/MITOSFhmEFoDY
+          /8mmGUIAdy66nSToJU7whtSWcAjZDojWUhB29xSvmAM+bX1h5eknNadUUQ==
+          -----END PUBLIC KEY-----
+          KEY
+          openssl dgst -sha256 -verify pub.pem -signature Flarial.Launcher.Linux.tar.zst.sig Flarial.Launcher.Linux.tar.zst
+
+      - name: Manifest
+        run: |
+          jq -n \
+            --arg version "$(cat Flarial.Launcher/version.txt)" \
+            --arg url "$CDN_URL/Flarial.Launcher.Linux.tar.zst" \
+            --arg sha256 "$(sha256sum Flarial.Launcher.Linux.tar.zst | cut -d' ' -f1)" \
+            --argjson size "$(stat -c %s Flarial.Launcher.Linux.tar.zst)" \
+            --arg signature "$(base64 -w0 Flarial.Launcher.Linux.tar.zst.sig)" \
+            '{version:$version,url:$url,sha256:$sha256,size:$size,signature:$signature}' > Flarial.Launcher.Linux.json
+
+      - name: Token
+        uses: actions/create-github-app-token@v3
+        id: token
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: flarialmc
+          repositories: newcdn
+
+      - name: CDN
+        uses: actions/checkout@v7
+        with:
+          repository: 'flarialmc/newcdn'
+          ref: 'main'
+          path: 'cdn'
+          token: ${{ steps.token.outputs.token }}
+
+      - name: Deploy
+        run: |
+          mkdir -p cdn/launcher/linux
+          cp Flarial.Launcher.Linux.tar.zst Flarial.Launcher.Linux.tar.zst.sig Flarial.Launcher.Linux.json cdn/launcher/linux/
+          cp packaging/install.sh cdn/launcher/linux/install.sh
+
+          cd cdn
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@example.com"
+
+          git add launcher/linux
+          git commit -m "Update Linux Launcher -> '$VERSION'"
+          git push

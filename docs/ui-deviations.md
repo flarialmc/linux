@@ -25,7 +25,9 @@ No `.axaml`, style, animation, converter, control, font or image file was modifi
 | `ViewModels/MainWindowViewModel.cs` | launcher self-update (`CheckForUpdatesAsync`/`DownloadAsync`, `IProgress<int>`) removed from `OnLoaded` | self-update disabled entirely |
 | `ScreenshotDriver.cs` | new dev tool | verification |
 
-Dead on Linux but kept as-is: `LauncherMigrationDialog`, `LauncherUpdateAvailableDialog`, `AutomaticUpdates` setting (UI toggle still present, no effect).
+Dead on Linux but kept as-is: `LauncherMigrationDialog`.
+
+Launcher self-update is back (signed tar.zst, see `docs/updates.md`): `ViewModels/MainWindowViewModel.cs` `OnLoaded` marks the install healthy and, with `AutomaticUpdates` on and a managed install, silently installs an update in the background, then shows the unchanged `LauncherUpdateAvailableDialog` (Update = restart, Later = next start). `Program.cs` handles `--install` and the startup rollback check. `FlarialLauncher.Version` (home screen version text) now reads `version.txt` next to the executable.
 
 ## Windows-only visuals
 * `AcrylicBlur`, `SpotlightDecorator` (SKRuntimeEffect), custom tooltip: pure Skia/Avalonia, run unchanged on Linux.

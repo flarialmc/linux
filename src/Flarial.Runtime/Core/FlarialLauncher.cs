@@ -7,7 +7,14 @@ namespace Flarial.Runtime.Core;
 // Self-update/migration removed on Linux (original downloaded a replacement package and restarted); see Flarial.Runtime.Windows.
 public static class FlarialLauncher
 {
-    public static string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
+    public static string Version { get; } = ReadVersion();
+
+    // version.txt next to the executable (written by release CI), assembly version as fallback.
+    static string ReadVersion()
+    {
+        try { if (System.IO.File.ReadAllText(System.IO.Path.Combine(System.AppContext.BaseDirectory, "version.txt")).Trim() is { Length: > 0 } v) return v; } catch { }
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
+    }
 
     const string AcceptedUri = "https://cdn.flarial.xyz/202.txt";
 

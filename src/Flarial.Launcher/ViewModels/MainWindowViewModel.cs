@@ -90,5 +90,31 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         HomeViewModel.LauncherStatus = "Ready!";
         HomeViewModel.IsLaunching = false;
+
+        if (Flarial.Runtime.Linux.Update.LauncherUpdater.ForRunningInstall() is { } updater)
+        {
+            updater.MarkHealthy();
+            if (_settings.AutomaticUpdates) _ = UpdateLauncherAsync(updater);
+        }
+    }
+
+    // Silent background update (see docs/ui-deviations.md): deferred while the game runs or a version installs; never exits on its own.
+    async Task UpdateLauncherAsync(Flarial.Runtime.Linux.Update.LauncherUpdater updater)
+    {
+        static void Log(string m) { try { System.IO.File.AppendAllText(System.IO.Path.Combine(Flarial.Runtime.Linux.LinuxPlatform.LauncherDataDirectory, "..", "Linux", "logs", "updater.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {m}\n"); } catch { } }
+        bool Busy() => Minecraft.IsRunning || SettingsViewModel.SettingsVersionsViewModel.IsInstalling;
+        try
+        {
+            while (Busy()) await Task.Delay(TimeSpan.FromSeconds(30));
+            var manifest = await updater.CheckAsync(FlarialLauncher.Version);
+            if (manifest is null) return;
+            while (Busy()) await Task.Delay(TimeSpan.FromSeconds(30));
+            await updater.InstallAsync(manifest);
+            if (!await LauncherUpdateAvailableDialog._.ShowAsync()) return;
+            if (Busy()) { NotificationArea.Add("Launcher update will apply on the next start."); return; }
+            Flarial.Runtime.Linux.Update.LauncherUpdater.SpawnLauncher();
+            ((Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!).Shutdown();
+        }
+        catch (Exception e) { Log("auto-update failed: " + e.Message); }
     }
 }

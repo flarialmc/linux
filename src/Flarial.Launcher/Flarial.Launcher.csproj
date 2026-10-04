@@ -49,6 +49,7 @@
     <ItemGroup>
         <Compile Include="..\AssemblyVersion.cs" />
         <AvaloniaResource Include="Resources\**" />
+        <None Include="..\..\version.txt" Link="version.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
