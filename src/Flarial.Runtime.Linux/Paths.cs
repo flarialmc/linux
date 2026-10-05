@@ -63,6 +63,8 @@ static class Paths
 
     public static void Ensure()
     {
+        // one-time cleanup of the removed presence patch cache
+        try { Directory.Delete(Path.Combine(Cache, "linux-presence"), true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         foreach (var d in new[] { Cache, Logs, Run, ProtonDir, Games, Dir("compatdata"), GraphicsCache, SteamCompat })
             Directory.CreateDirectory(d);
         foreach (var d in new[] { Dir("msa"), PreauthDir, XodusHome, GraphicsCache })
