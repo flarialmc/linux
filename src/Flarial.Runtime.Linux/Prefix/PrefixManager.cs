@@ -215,9 +215,15 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
     public async Task SetRefreshTokenAsync(string? token, CancellationToken ct)
     {
         // no wineserver holds the prefix right now: patch system.reg directly (saves ~4 s of wine spawn + wineserver linger)
-        if (Valid && Launch.ProcScan.PrefixPids().Count == 0 && HiveEdit.SetString(Path.Combine(Pfx, "system.reg"), @"Software\\Wine\\WineGDK", "RefreshToken", token)) return;
+        if (Valid && Launch.ProcScan.WinePids().Count == 0 && HiveEdit.SetString(Path.Combine(Pfx, "system.reg"), @"Software\\Wine\\WineGDK", "RefreshToken", token)) return;
         var value = token is null ? "-" : "\"" + token.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-        await ImportRegAsync($"Windows Registry Editor Version 5.00\n\n[{WineGdkKey}]\n\"RefreshToken\"={value}\n", ct, quick: true); // a launch never waits long on a stale wineserver
+        try { await ImportRegAsync($"Windows Registry Editor Version 5.00\n\n[{WineGdkKey}]\n\"RefreshToken\"={value}\n", ct, quick: true); } // a launch never waits long on a stale wineserver
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // non-fatal: device.json via WINEGDK_PREAUTH_DEVICE still carries auth
+            var msg = $"{DateTime.Now:O} refresh token write failed, continuing launch: {e.Message}\n";
+            try { Directory.CreateDirectory(Paths.Logs); File.AppendAllText(Log, msg); File.AppendAllText(Path.Combine(Paths.Logs, "launch.log"), msg); } catch { }
+        }
     }
 
     public async Task PrepareGameAsync(string gameDir, IProgress<double>? progress, CancellationToken ct)

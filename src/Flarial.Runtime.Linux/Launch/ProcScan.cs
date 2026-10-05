@@ -39,6 +39,9 @@ static class ProcScan
         return r;
     }
 
+    /// <summary>Prefix pids that are actual wine processes (wineserver, wine*, *.exe). Excludes the launch's own pre-wine chain (xodus-cli, wrapper sh, umu python), which carries WINEPREFIX too.</summary>
+    public static List<int> WinePids() => PrefixPids().FindAll(p => CmdLine(p).FirstOrDefault() is { } a && Path.GetFileName(a.Replace('\\', '/')).ToLowerInvariant() is var n && (n.StartsWith("wine") || n.EndsWith(".exe")));
+
     public static bool Alive(int pid)
     {
         try { return !File.ReadAllText($"/proc/{pid}/stat").Contains(") Z"); }

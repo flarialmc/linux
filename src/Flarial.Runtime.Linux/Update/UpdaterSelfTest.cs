@@ -18,6 +18,14 @@ static class UpdaterSelfTest
 
     public static async Task<int> RunAsync()
     {
+        var dummy = new ProcessStartInfo("sleep", "30") { Environment = { ["WINEPREFIX"] = Paths.Prefix } };
+        using (var d = Process.Start(dummy)!)
+        {
+            await Task.Delay(200);
+            Check("pid filter: own chain in PrefixPids", Launch.ProcScan.PrefixPids().Contains(d.Id));
+            Check("pid filter: own chain not a wine pid", !Launch.ProcScan.WinePids().Contains(d.Id));
+            d.Kill();
+        }
         var tmp = Directory.CreateTempSubdirectory("flarial-updtest").FullName;
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
