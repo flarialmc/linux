@@ -174,6 +174,9 @@ int wmain(int argc, wchar_t **argv)
     for (int i = 2; i < last; ++i) {
         int dep = load_library(h, argv[i]);
         if (dep) fwprintf(stderr, L"WARN dependency not loaded (%d): %ls\n", dep, argv[i]);
+        /* a timed-out LoadLibrary still holds the loader lock in the target: every further remote load would
+         * block behind it for its full wait, so stop here instead of stacking 15 s timeouts */
+        if (dep == 8) { CloseHandle(h); return 8; }
     }
 
     int code = load_library(h, argv[last]);

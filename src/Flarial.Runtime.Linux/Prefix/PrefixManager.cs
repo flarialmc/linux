@@ -92,11 +92,11 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
     static async Task<int> Run(System.Diagnostics.ProcessStartInfo i, TimeSpan timeout, CancellationToken ct) =>
         await Proc.RunAsync(i, Log, timeout, ct);
 
-    async Task Wine(IEnumerable<string> args, TimeSpan timeout, CancellationToken ct)
+    async Task Wine(IEnumerable<string> args, TimeSpan timeout, CancellationToken ct, TimeSpan? serverWait = null)
     {
         var code = await Run(Proc.Info(engine.Wine, args, WineEnv()), timeout, ct);
         // let the prefix wineserver exit so the registry hits disk
-        await Run(Proc.Info(engine.Wineserver, ["-w"], WineEnv()), TimeSpan.FromSeconds(60), ct);
+        await Run(Proc.Info(engine.Wineserver, ["-w"], WineEnv()), serverWait ?? TimeSpan.FromSeconds(60), ct);
         if (code != 0) throw new IOException($"wine {string.Join(' ', args)} failed ({code}); see {Log}");
     }
 
@@ -200,13 +200,13 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
         }
     }
 
-    async Task ImportRegAsync(string reg, CancellationToken ct)
+    async Task ImportRegAsync(string reg, CancellationToken ct, bool quick = false)
     {
         var file = Path.Combine(Paths.Run, "prefix-" + Guid.NewGuid().ToString("N") + ".reg");
         Directory.CreateDirectory(Paths.Run);
         await using (var fs = new FileStream(file, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
             await fs.WriteAsync(new UTF8Encoding(false).GetBytes(reg.Replace("\r", "").Replace("\n", "\r\n")), ct);
-        try { await Wine(["reg", "import", WinPath(file)], TimeSpan.FromMinutes(3), ct); }
+        try { await Wine(["reg", "import", WinPath(file)], quick ? TimeSpan.FromSeconds(8) : TimeSpan.FromMinutes(3), ct, quick ? TimeSpan.FromSeconds(3) : null); }
         finally { File.Delete(file); }
     }
 
@@ -217,7 +217,7 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
         // no wineserver holds the prefix right now: patch system.reg directly (saves ~4 s of wine spawn + wineserver linger)
         if (Valid && Launch.ProcScan.PrefixPids().Count == 0 && HiveEdit.SetString(Path.Combine(Pfx, "system.reg"), @"Software\\Wine\\WineGDK", "RefreshToken", token)) return;
         var value = token is null ? "-" : "\"" + token.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-        await ImportRegAsync($"Windows Registry Editor Version 5.00\n\n[{WineGdkKey}]\n\"RefreshToken\"={value}\n", ct);
+        await ImportRegAsync($"Windows Registry Editor Version 5.00\n\n[{WineGdkKey}]\n\"RefreshToken\"={value}\n", ct, quick: true); // a launch never waits long on a stale wineserver
     }
 
     public async Task PrepareGameAsync(string gameDir, IProgress<double>? progress, CancellationToken ct)

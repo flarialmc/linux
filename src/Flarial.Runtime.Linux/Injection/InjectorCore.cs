@@ -97,16 +97,27 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
 
         var env = new Dictionary<string, string?> { ["WINEPREFIX"] = Paths.Prefix, ["WINEESYNC"] = "1", ["WINEFSYNC"] = "1", ["WINEDEBUG"] = "-all" };
         var info = Proc.Info(engine.Wine, [Paths.Injector, "Minecraft.Windows.exe", .. libraries.Select(ToWine)], env);
-        // a process that was only just created may not be openable yet (not found / OpenProcess / CreateRemoteThread fail): retry fast, not a fixed sleep
+        // a process that was only just created may not be openable yet (not found / OpenProcess / CreateRemoteThread fail): retry briefly with a small backoff
+        // injector.exe is bounded: a LoadLibrary hung in the target (loader lock) or a game that died under it must never leave it running forever
+        var timeout = TimeSpan.FromSeconds(20 + 2 * libraries.Count);
         var retryEnd = DateTime.UtcNow + TimeSpan.FromSeconds(5);
         int code;
-        while (true)
+        using var gone = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _ = Task.Run(async () => { while (!gone.IsCancellationRequested) { await Task.Delay(250); if (!ProcScan.Alive(pid)) { try { gone.Cancel(); } catch (ObjectDisposedException) { } } } });
+        for (var attempt = 0; ; attempt++)
         {
-            code = await Proc.RunAsync(info, Path.Combine(Paths.Logs, "injector.log"), TimeSpan.FromSeconds(60 + 5 * libraries.Count));
+            try { code = await Proc.RunAsync(info, Path.Combine(Paths.Logs, "injector.log"), timeout, gone.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                LaunchLog.Phase("injector.exe killed: the game process disappeared during injection");
+                return new(false, -1, "Minecraft exited during injection.");
+            }
             if (code is not (3 or 4 or 6) || DateTime.UtcNow >= retryEnd || !ProcScan.Alive(pid)) break;
-            LaunchLog.Phase($"injector exit {code}, retrying");
-            await Task.Delay(100, ct);
+            if (attempt == 0) LaunchLog.Phase($"injector exit {code}, retrying");
+            await Task.Delay(Math.Min(100 * (attempt + 1), 500), CancellationToken.None);
         }
+        gone.Cancel();
+        if (code == -1) LaunchLog.Phase($"injector.exe killed after {timeout.TotalSeconds:0} s (hung in the game process)");
         LaunchLog.Phase($"injector.exe finished (exit {code})");
         if (code != 0) return new(false, code, Describe(code));
         // non-blocking: report success now, log a crash right after injection from the background
@@ -116,9 +127,9 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
 
     static string Describe(int code) => code switch
     {
-        -1 => "Injector timed out.",
+        -1 => "Injector timed out (the client's LoadLibrary hung inside Minecraft).",
         2 => "Injector usage error.",
-        3 => "Game process not found by the injector.",
+        3 => "Game process not found by the injector (it is not in the injector's wineserver: stale Wine session?).",
         4 => "Could not open the game process.",
         5 => "Could not write to the game process.",
         6 => "Could not create the remote thread.",

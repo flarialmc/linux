@@ -35,7 +35,24 @@ sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAut
         if (IsRunning) throw new InvalidOperationException("Minecraft is already running.");
         if (!File.Exists(Path.Combine(gameDir, Exe))) throw new FileNotFoundException("Game executable not found.", Path.Combine(gameDir, Exe));
 
+        // IsRunning is false: whatever still lives in our prefix (a previous session's wineserver, a hung injector.exe, umu/xodus) is stale and would
+        // make the injector and the registry write talk to the wrong wineserver. A launch in progress owns its own chain: never touch that.
+        if (Interlocked.Exchange(ref s_launching, 1) != 0) throw new InvalidOperationException("A launch is already in progress.");
+        try { return await LaunchCoreAsync(gameDir, settings, ct); }
+        finally { Volatile.Write(ref s_launching, 0); }
+    }
+
+    static int s_launching;
+
+    async Task<uint?> LaunchCoreAsync(string gameDir, LaunchSettings settings, CancellationToken ct)
+    {
         if (LaunchLog.TakeFresh()) LaunchLog.Phase("LaunchAsync entered " + gameDir); else LaunchLog.Begin("launch " + gameDir);
+        if (ProcScan.PrefixPids() is { Count: > 0 } stale)
+        {
+            LaunchLog.Phase($"stale cleanup: {stale.Count} leftover process(es) in the prefix, no running game ({string.Join(", ", stale.Take(8).Select(p => p + ":" + Path.GetFileName(ProcScan.CmdLine(p).FirstOrDefault() ?? "?").Replace('\\', '/')))})");
+            await KillAsync(ct);
+            LaunchLog.Phase(ProcScan.PrefixPids().Count is var left and > 0 ? $"stale cleanup incomplete: {left} process(es) remain" : "stale cleanup done");
+        }
         ReadyGate.Start();
         var mlog = Path.Combine(Paths.Logs, "minecraft.log");
         LaunchLog.GameLogOffset = File.Exists(mlog) ? new FileInfo(mlog).Length : 0;

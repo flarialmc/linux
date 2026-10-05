@@ -63,7 +63,11 @@ public sealed class LinuxInjector : IInjector
             r = Core.InjectAsync(libraries, pid, TimeSpan.FromSeconds(Settings.InjectDelaySeconds), CancellationToken.None).GetAwaiter().GetResult();
         }
         if (r.Ok) s_last = Path.GetFileName(dllPath);
-        else try { File.AppendAllText(Path.Combine(Paths.Logs, "launcher.log"), $"{DateTime.Now:s} inject failed: {r.Message}\n"); } catch { }
+        else
+        {
+            LinuxPlatform.Notify?.Invoke("Injection failed: " + r.Message);
+            try { File.AppendAllText(Path.Combine(Paths.Logs, "launcher.log"), $"{DateTime.Now:s} inject failed: {r.Message}\n"); } catch { }
+        }
         return r.Ok;
     }
 }
