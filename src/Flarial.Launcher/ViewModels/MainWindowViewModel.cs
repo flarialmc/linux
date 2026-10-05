@@ -65,6 +65,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public async void OnLoaded()
     {
+        Flarial.Runtime.Linux.Update.LauncherUpdater.ForRunningInstall()?.MarkHealthy();
+        await EnsureDependenciesAsync();
         if (!await FlarialLauncher.CanConnectAsync())
         {
             await ConnectionFailureDialog._.ShowAsync();

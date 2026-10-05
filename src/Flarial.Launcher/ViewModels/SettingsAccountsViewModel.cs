@@ -57,6 +57,7 @@ public partial class SettingsAccountsViewModel : ViewModelBase
 
     async Task OnMicrosoftSignInAsync()
     {
+        if (!await _main.EnsureDependenciesAsync()) return;
         MicrosoftBusy = true;
         try { await Service.SignInMicrosoftAsync(default); } catch { }
         await RefreshAsync(); MicrosoftBusy = false;

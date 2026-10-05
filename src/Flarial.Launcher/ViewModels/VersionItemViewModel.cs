@@ -56,6 +56,7 @@ public sealed partial class VersionItemViewModel : ViewModelBase, IProgress<(int
     public bool IsNotInstalled => State is VersionItemState.NotInstalled;
 
     readonly MainWindow _mainWindow;
+    readonly MainWindowViewModel _main;
     readonly VersionItem _versionItem;
     readonly SettingsVersionsViewModel _settingsVersionsViewModel;
 
@@ -81,6 +82,7 @@ public sealed partial class VersionItemViewModel : ViewModelBase, IProgress<(int
         var application = Application.Current!;
         var applicationLifetime = (IClassicDesktopStyleApplicationLifetime)application.ApplicationLifetime!;
 
+        _main = mainWindowViewModel;
         _versionItem = versionItem;
         _mainWindow = (MainWindow)applicationLifetime.MainWindow!;
         _settingsVersionsViewModel = mainWindowViewModel.SettingsViewModel.SettingsVersionsViewModel;
@@ -131,6 +133,7 @@ public sealed partial class VersionItemViewModel : ViewModelBase, IProgress<(int
 
     private async Task InstallAsync()
     {
+        if (!await _main.EnsureDependenciesAsync()) return;
         if (!GamingServices.IsInstalled)
         {
             await GamingServicesMissingDialog._.ShowAsync();

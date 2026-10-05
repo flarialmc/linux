@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using ReactiveUI;
 using ReactiveUI.Primitives;
@@ -14,6 +15,7 @@ public sealed class MessageBoxViewModel : ReactiveObject
     public string Title { get; }
     public string Message { get; }
     public IEnumerable<string> Buttons { get; }
+    public bool IsBusy => !Buttons.Any();
     public Signal<RxVoid> CloseRequested { get; } = new();
 
     public ReactiveCommand<string, RxVoid> SelectButtonCommand { get; }

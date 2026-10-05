@@ -52,6 +52,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
         LinuxPlatform.LaunchBegin("click");
         try
         {
+            if (!await _mainWindowViewModel.EnsureDependenciesAsync()) return;
             var path = _settings.CustomDllPath;
             var beta = _settings.BuildType is BuildType.Beta;
             var release = _settings.BuildType is BuildType.Release;

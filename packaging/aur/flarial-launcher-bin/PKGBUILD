@@ -1,12 +1,12 @@
 # Maintainer: Flarial <https://github.com/flarialmc>
 pkgname=flarial-launcher-bin
 pkgver=1.0.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Flarial Launcher for Linux (bootstrap; installs and self-updates per user)'
 arch=(x86_64)
 url='https://flarial.xyz'
 license=(GPL-3.0-only)
-depends=(python zstd openssl vulkan-icd-loader tar curl xorg-xprop)
+depends=(python zstd openssl vulkan-icd-loader tar gzip curl xorg-xprop util-linux coreutils bash xdg-utils)
 optdepends=('libsecret: store login tokens in the system keyring'
             'vulkan-tools: diagnostics')
 source=(flarial-launcher

@@ -9,7 +9,13 @@ Arch/CachyOS (AUR): `yay -S flarial-launcher-bin`. The package only ships a boot
 then self-updates in `~/.local/share/Flarial/Linux/launcher`.
 
 Re-running the installer updates/repairs. Downloads are verified (size, sha256, ECDSA P-256 signature).
-Needs: curl or wget, tar, zstd, openssl, python3 (and a working Vulkan driver).
+The installer checks curl or wget, tar, gzip, zstd, openssl, python3, bash, script, setsid, stty, xdg-open and xprop. It explains missing tools and asks before installing distro packages. Piped installs read the answer and password from the terminal; without a terminal they print a command and exit. Launcher files stay in your home directory.
+
+Existing installs also get a setup dialog at startup and before downloads, launches or Microsoft sign-in. It offers package installation through the system password prompt, a copyable command, and Later. Without pkexec it offers Check again after a manual install. Package output is saved to `~/.local/share/Flarial/Linux/logs/dependencies.log`. Immutable systems get manual setup guidance.
+
+Check or repair tools without downloading the launcher: `sh install.sh --check-dependencies`.
+
+A working Vulkan driver is still required. GPU drivers are hardware-specific and are not installed automatically; vulkan-tools and secret-tool remain optional.
 Env overrides for testing: `FLARIAL_CDN_BASE` (may be `file://...`), `FLARIAL_PUBKEY_FILE`.
 
 ## Uninstall

@@ -1,8 +1,9 @@
 #!/bin/sh
-# Flarial Launcher (Linux) installer. No root, no sudo.
+# Flarial Launcher (Linux) installer. Launcher files stay in your home directory.
+# Missing system packages are installed only after you approve the prompt.
 #   curl -fsSL https://cdn.flarial.xyz/launcher/linux/install.sh | sh
 #   sh install.sh --uninstall [--purge [--yes]]
-# Options: --quiet (less output)
+# Options: --quiet (less output), --check-dependencies (check/repair only)
 # Env: FLARIAL_CDN_BASE (default https://cdn.flarial.xyz/launcher/linux, file:// ok), FLARIAL_PUBKEY_FILE
 set -eu
 
@@ -20,9 +21,10 @@ DESKTOP_FILE=$DATA_HOME/applications/flarial-launcher.desktop
 ICON_DIR=$DATA_HOME/icons/hicolor/256x256/apps
 ICON_FILE=$ICON_DIR/flarial-launcher.png
 
-MODE=install PURGE=0 YES=0 QUIET=0
+MODE=install PURGE=0 YES=0 QUIET=0 CHECK_ONLY=0
 for a in "$@"; do
   case $a in
+    --check-dependencies) CHECK_ONLY=1 ;;
     --uninstall) MODE=uninstall ;;
     --purge) PURGE=1 ;;
     --yes|-y) YES=1 ;;
@@ -74,42 +76,104 @@ if [ -r /etc/os-release ]; then
   ids=$(. /etc/os-release; echo "${ID:-} ${ID_LIKE:-}")
   case " $ids " in
     *" arch "*|*" cachyos "*|*" manjaro "*) pkgmgr=pacman ;;
-    *" debian "*|*" ubuntu "*) pkgmgr=apt ;;
-    *" fedora "*|*" rhel "*) pkgmgr=dnf ;;
+    *" debian "*|*" ubuntu "*) pkgmgr=apt-get ;;
+    *" fedora "*|*" nobara "*|*" rhel "*) pkgmgr=dnf ;;
     *" suse "*|*" opensuse"*) pkgmgr=zypper ;;
   esac
 fi
 hint() { # $1 pacman pkg, $2 apt, $3 dnf, $4 zypper
   case $pkgmgr in
     pacman) echo "sudo pacman -S $1" ;;
-    apt) echo "sudo apt install $2" ;;
+    apt-get) echo "sudo apt-get install $2" ;;
     dnf) echo "sudo dnf install $3" ;;
     zypper) echo "sudo zypper install $4" ;;
     *) echo "install: $1 (Arch) / $2 (Debian) / $3 (Fedora) / $4 (openSUSE)" ;;
   esac
 }
 
-missing=
-need() { # $1 command, rest hint args
+missing= packages=
+add_missing() {
   c=$1; shift
-  command -v "$c" >/dev/null 2>&1 || missing="$missing
-  $c missing -> $(hint "$@")"
+  case $pkgmgr in
+    pacman) pkg=$1 ;; apt-get) pkg=$2 ;; dnf) pkg=$3 ;; zypper) pkg=$4 ;; *) pkg= ;;
+  esac
+  missing="$missing
+  • $c -> $(hint "$@")"
+  if [ -n "$pkg" ]; then
+    case " $packages " in *" $pkg "*) ;; *) packages="${packages:+$packages }$pkg" ;; esac
+  fi
 }
-HAVE_CURL=0; command -v curl >/dev/null 2>&1 && HAVE_CURL=1
-if [ "$HAVE_CURL" = 0 ]; then
-  case $CDN_BASE in file://*) ;; *) command -v wget >/dev/null 2>&1 || missing="$missing
-  curl or wget missing -> $(hint curl curl curl curl)" ;; esac
-fi
-need tar tar tar tar tar
-command -v zstd >/dev/null 2>&1 || tar --help 2>/dev/null | grep -q zstd || missing="$missing
-  zstd (or a tar with zstd support) missing -> $(hint zstd zstd zstd zstd)"
-need openssl openssl openssl openssl openssl
-need python3 python python3 python3 python3
+need() {
+  c=$1; shift
+  command -v "$c" >/dev/null 2>&1 || add_missing "$c" "$@"
+}
+check_dependencies() {
+  missing= packages=
+  HAVE_CURL=0; command -v curl >/dev/null 2>&1 && HAVE_CURL=1
+  if [ "$HAVE_CURL" = 0 ]; then
+    case $CDN_BASE in file://*) ;; *) command -v wget >/dev/null 2>&1 || add_missing curl curl curl curl curl ;; esac
+  fi
+  need tar tar tar tar tar
+  need gzip gzip gzip gzip gzip
+  need zstd zstd zstd zstd zstd
+  need openssl openssl openssl openssl openssl
+  need python3 python python3 python3 python3
+  need bash bash bash bash bash
+  need script util-linux bsdutils "$script_pkg" util-linux
+  need setsid util-linux util-linux "$setsid_pkg" util-linux
+  need stty coreutils coreutils coreutils coreutils
+  need xdg-open xdg-utils xdg-utils xdg-utils xdg-utils
+  need xprop xorg-xprop x11-utils xprop xprop
+}
+script_pkg=util-linux setsid_pkg=util-linux
+case " ${ids:-} " in
+  *" fedora "*|*" nobara "*) script_pkg=util-linux-script; setsid_pkg=util-linux-core ;;
+esac
+check_dependencies
 if [ -n "$missing" ]; then
-  echo "error: missing required dependencies:$missing" >&2
-  exit 1
+  echo "Finish Linux setup: missing tools:$missing" >&2
+  echo "These tools are used for game downloads, sign-in, Wine/Proton startup and launcher updates." >&2
+  case $pkgmgr in
+    pacman) set -- -S --needed --noconfirm $packages ;;
+    apt-get|dnf) set -- install -y $packages ;;
+    zypper) set -- --non-interactive install $packages ;;
+    *) die "install the listed tools with your system's package manager, then run this installer again" ;;
+  esac
+  echo "" >&2
+  if [ -e /run/ostree-booted ]; then
+    echo "  rpm-ostree install $packages" >&2
+  else
+    echo "  sudo $pkgmgr $*" >&2
+  fi
+  if [ -e /run/ostree-booted ] || [ -e /etc/NIXOS ]; then
+    die "this system manages packages differently; add these tools through your system's package setup and restart if required"
+  fi
+  [ -x "/usr/bin/$pkgmgr" ] || die "package manager unavailable; install the listed tools manually and retry"
+  if ! ( : </dev/tty ) 2>/dev/null; then
+    die "run the command above in a terminal, then retry; no packages were installed"
+  fi
+  echo "Only missing packages and their dependencies will be installed. Your system may ask for your password." >&2
+  printf 'Install these packages now? [y/N] ' >/dev/tty
+  read -r ans </dev/tty || ans=
+  case $ans in
+    y|Y|yes|YES) ;;
+    *) die "setup cancelled; no packages were installed. Run this installer again when you're ready" ;;
+  esac
+  if [ -x /usr/bin/sudo ]; then
+    /usr/bin/sudo -- "/usr/bin/$pkgmgr" "$@" </dev/tty >/dev/tty 2>&1 || die "package installation failed; check your connection or other running package managers, then retry"
+  elif [ -x /usr/bin/pkexec ]; then
+    /usr/bin/pkexec "/usr/bin/$pkgmgr" "$@" </dev/tty >/dev/tty 2>&1 || die "package installation failed or authorization was cancelled; install the listed packages manually and retry"
+  else
+    die "sudo/pkexec unavailable; install the listed packages manually and retry"
+  fi
+  check_dependencies
+  [ -z "$missing" ] || die "some tools are still missing:$missing"
+  say "Linux dependencies are ready."
 fi
-command -v xprop >/dev/null 2>&1 || warn "xprop not found; the launcher cannot detect a game process that outlived its window ($(hint xorg-xprop x11-utils xprop xprop))"
+if [ "$CHECK_ONLY" = 1 ]; then
+  say "Linux dependencies are ready."
+  exit 0
+fi
 if command -v vulkaninfo >/dev/null 2>&1; then
   vulkaninfo --summary >/dev/null 2>&1 || warn "vulkaninfo failed; Vulkan may be unusable (games need a working Vulkan driver, e.g. $(hint vulkan-icd-loader libvulkan1 vulkan-loader vulkan-loader))"
 else
