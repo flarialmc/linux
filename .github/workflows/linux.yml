@@ -37,6 +37,13 @@ jobs:
         with:
           dotnet-version: latest
 
+      - name: Verify Linux presence patch against shared Windows DLLs
+        run: |
+          mkdir -p "$RUNNER_TEMP/presence"
+          curl --fail --location --retry 3 https://cdn.flarial.xyz/dll/latest.dll -o "$RUNNER_TEMP/presence/release.dll"
+          curl --fail --location --retry 3 https://cdn.flarial.xyz/dll/beta.dll -o "$RUNNER_TEMP/presence/beta.dll"
+          dotnet run --project tests/LinuxPresence -c Release -- "$RUNNER_TEMP/presence/release.dll" "$RUNNER_TEMP/presence/beta.dll"
+
       - name: Bump
         run: |
           echo "Bumping launcher version with build date."

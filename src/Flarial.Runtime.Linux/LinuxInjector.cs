@@ -42,7 +42,18 @@ public sealed class LinuxInjector : IInjector
 
     public bool Inject(IReadOnlyList<string> libraries, uint processId)
     {
-        var dllPath = libraries[^1];
+        string dllPath;
+        try
+        {
+            dllPath = LinuxPresencePatch.Prepare(libraries[^1], Path.Combine(Paths.Cache, "linux-presence"));
+            libraries = [.. libraries.Take(libraries.Count - 1), dllPath];
+        }
+        catch (Exception error) when (error is IOException or InvalidOperationException or BadImageFormatException)
+        {
+            LinuxPlatform.Notify?.Invoke(error.Message);
+            LaunchLog.Note($"Linux presence patch failed: {error.Message}");
+            return false;
+        }
         // the wait cap counts from a launch we did ourselves; an already running game needs none
         var wait = TimeSpan.FromSeconds(Settings.InjectDelaySeconds) - (DateTime.UtcNow - LinuxGameService.LastLaunchUtc);
         if (wait < TimeSpan.Zero) wait = TimeSpan.Zero;
