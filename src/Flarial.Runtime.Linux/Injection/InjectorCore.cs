@@ -16,18 +16,24 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
 
     public Task EnsureInjectorExeAsync(CancellationToken ct)
     {
-        if (s_extracted && File.Exists(Paths.Injector)) return Task.CompletedTask;
-        using var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("injector.exe")!;
-        using var m = new MemoryStream(); s.CopyTo(m);
-        var bytes = m.ToArray();
-        if (File.Exists(Paths.Injector) && File.ReadAllBytes(Paths.Injector).AsSpan().SequenceEqual(bytes)) { s_extracted = true; return Task.CompletedTask; }
-        Directory.CreateDirectory(Paths.Cache);
-        var tmp = Paths.Injector + ".tmp";
-        File.WriteAllBytes(tmp, bytes);
-        File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-        File.Move(tmp, Paths.Injector, true);
+        if (s_extracted && File.Exists(Paths.Injector) && File.Exists(Paths.BcryptShim)) return Task.CompletedTask;
+        Extract("injector.exe", Paths.Injector);
+        Extract("flarial_bcrypt_shim.dll", Paths.BcryptShim);
         s_extracted = true;
         return Task.CompletedTask;
+    }
+
+    static void Extract(string resource, string target)
+    {
+        using var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)!;
+        using var m = new MemoryStream(); s.CopyTo(m);
+        var bytes = m.ToArray();
+        if (File.Exists(target) && File.ReadAllBytes(target).AsSpan().SequenceEqual(bytes)) return;
+        Directory.CreateDirectory(Paths.Cache);
+        var tmp = target + ".tmp";
+        File.WriteAllBytes(tmp, bytes);
+        File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        File.Move(tmp, target, true);
     }
 
     static bool WinedbgRunning() => ProcScan.PrefixPids().Any(p => ProcScan.CmdLine(p).FirstOrDefault() is { } a && Path.GetFileName(a.Replace('\\', '/')).StartsWith("winedbg", StringComparison.OrdinalIgnoreCase));

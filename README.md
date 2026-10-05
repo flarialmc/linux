@@ -83,7 +83,7 @@ Architecture:
 
 - `src/Flarial.Launcher`: Avalonia UI and view models, ported 1:1 from [flarialmc/Flarial.Launcher](https://github.com/flarialmc/Flarial.Launcher)
 - `src/Flarial.Runtime`: cross-platform backend (HTTP, OAuth, DLL download, version registry, settings) that talks to the OS only through `Platform/Platform.cs`
-- `src/Flarial.Runtime.Linux`: Linux backend, modules `Xodus`, `Xbox`, `Engine`, `Prefix`, `Launch`, `Injection`, `Update`; native helpers in `Native/` (`injector.c`, `flarial_vault.cpp`)
+- `src/Flarial.Runtime.Linux`: Linux backend, modules `Xodus`, `Xbox`, `Engine`, `Prefix`, `Launch`, `Injection`, `Update`; native helpers in `Native/` (`injector.c`, `flarial_vault.cpp`, `flarial_bcrypt_shim.cpp`, see `docs/wine-bcrypt-oaep.md`)
 - `src/Flarial.Runtime.Windows`: original Windows sources, kept for reference and not built
 
 ## Building from source
@@ -96,7 +96,7 @@ dotnet run --project src/Flarial.Launcher
 dotnet publish src/Flarial.Launcher -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -o publish
 ```
 
-`Native/flarial_vault.dll` and `Native/injector.exe` are prebuilt and committed (embedded resources); rebuild them with `MSVC_BIN=<path to your msvc-wine bin/x64> src/Flarial.Runtime.Linux/Native/build-vault.sh` (and `build-injector.sh`). Building them in CI is a future improvement.
+`Native/flarial_vault.dll`, `Native/flarial_bcrypt_shim.dll` (`build-bcrypt-shim.sh`) and `Native/injector.exe` are prebuilt and committed (embedded resources); rebuild them with `MSVC_BIN=<path to your msvc-wine bin/x64> src/Flarial.Runtime.Linux/Native/build-vault.sh` (and `build-injector.sh`). Building them in CI is a future improvement.
 
 Developer only: `FLARIAL_LINUX_SEED_FROM=<BedrockOnLinux dir>` links an existing engine/umu/xodus/game and copies its logins instead of downloading them. Do not use it for normal installs.
 

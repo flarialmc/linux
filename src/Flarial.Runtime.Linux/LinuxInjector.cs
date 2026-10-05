@@ -50,6 +50,10 @@ public sealed class LinuxInjector : IInjector
         // them by path always fails (upstream Windows has stubs on disk). Skip them; the client's real dependencies are still pre-loaded.
         var last = libraries.Count - 1;
         libraries = libraries.Where((l, i) => i == last || !IsApiSet(l)).ToList();
+        // Wine's bcrypt lacks RSA-OAEP encryption, which the client's API gateway needs: load our compatibility shim first (docs/wine-bcrypt-oaep.md).
+        // It is a dependency like the client's others (injected before the client DLL, which stays last) and is best-effort at runtime.
+        Core.EnsureInjectorExeAsync(CancellationToken.None).GetAwaiter().GetResult();
+        libraries = [Paths.BcryptShim, .. libraries];
         var r = Core.InjectAsync(libraries, processId, wait, CancellationToken.None).GetAwaiter().GetResult();
         // intermittent engine crash during startup (before the client exists): relaunch, at most twice, never in a loop
         for (var retry = 1; !r.Ok && r.Message == "Minecraft exited before injection." && retry <= MaxRetries && DateTime.UtcNow - LinuxGameService.LastLaunchUtc < TimeSpan.FromMinutes(2); retry++)

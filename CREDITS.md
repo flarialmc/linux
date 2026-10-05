@@ -17,6 +17,7 @@ This launcher stands on a lot of other people's work. Licenses were checked agai
 | [umu-launcher](https://github.com/Open-Wine-Components/umu-launcher) (Open Wine Components) | GPL-3.0 | `umu-run` starts the game in the Steam Linux Runtime. Downloaded, run as a separate process. |
 | [mcpelauncher-gdk-dependencies](https://github.com/minecraft-linux/mcpelauncher-gdk-dependencies) | MIT | Replacement `XCurl.dll` and `libHttpClient.GDK.dll` placed in the game directory. Notice: `src/Flarial.Runtime.Linux/Prefix/LICENSE-mcpelauncher-gdk-dependencies`. |
 | [GdkLinks](https://github.com/MinecraftBedrockArchiver/GdkLinks) (MinecraftBedrockArchiver) | MIT | Index of historical Minecraft GDK package URLs (pointers to Microsoft's CDN only). |
+| `flarial_bcrypt_shim.dll` (this repository) | GPL-3.0 (original code) | Wine bcrypt RSA-OAEP compatibility shim; implements RFC 8017 EME-OAEP/MGF1 and a small bignum RSA public operation. See `docs/wine-bcrypt-oaep.md`. |
 | [curl CA bundle](https://curl.se/docs/caextract.html) (Mozilla CA certificates) | MPL-2.0 | `cacert.pem` for the game's TLS stack. Downloaded. |
 
 ## Wine engine and runtime (downloaded, not redistributed)

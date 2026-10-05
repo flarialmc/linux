@@ -16,6 +16,7 @@
     <EmbeddedResource Include="Resources\launch-wrapper.sh" LogicalName="launch-wrapper.sh" />
     <EmbeddedResource Include="Native\injector.exe" LogicalName="injector.exe" />
     <EmbeddedResource Include="Native\flarial_vault.dll" LogicalName="flarial_vault.dll" />
+    <EmbeddedResource Include="Native\flarial_bcrypt_shim.dll" LogicalName="flarial_bcrypt_shim.dll" />
   </ItemGroup>
 
 </Project>

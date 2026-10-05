@@ -58,6 +58,8 @@ static class Paths
     public static string Settings => Dir("settings.json");
     public static string Wrapper => Dir("run", "launch-wrapper.sh");
     public static string Injector => Dir("cache", "injector.exe");
+    /// <summary>Wine compatibility shim (bcrypt RSA-OAEP), injected into Minecraft before the client. See docs/wine-bcrypt-oaep.md.</summary>
+    public static string BcryptShim => Dir("cache", "flarial_bcrypt_shim.dll");
 
     public static string GameDir(string edition, string version) => Dir("games", edition, version);
 
