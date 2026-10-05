@@ -58,8 +58,19 @@ public partial class SettingsAccountsViewModel : ViewModelBase
     async Task OnMicrosoftSignInAsync()
     {
         MicrosoftBusy = true;
-        try { await Service.SignInMicrosoftAsync(default); } catch { }
-        await RefreshAsync(); MicrosoftBusy = false;
+        try
+        {
+            var choice = await _main.ShowMessageBoxAsync("Microsoft sign-in permissions",
+                "The Minecraft download helper may ask for root access to read your computer's serial number and UUID for Microsoft device registration and licensing.\n\n" +
+                "The system prompt runs \"cat /sys/firmware/dmi/entries/1-0/raw\" to read this hardware information.\n\n" +
+                "Enter your Linux user password in the system prompt, not your Microsoft password.",
+                ["Continue", "Cancel"]);
+            if (choice != "Continue") return;
+
+            try { await Service.SignInMicrosoftAsync(default); } catch { }
+            await RefreshAsync();
+        }
+        finally { MicrosoftBusy = false; }
     }
 
     async Task OnMicrosoftSignOutAsync()
