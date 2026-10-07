@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
+using System.Threading.Tasks;
 using static Windows.Win32.PInvoke;
 using static Windows.Win32.System.Diagnostics.Debug.THREAD_ERROR_MODE;
 
@@ -10,8 +11,10 @@ using static Windows.Win32.System.Diagnostics.Debug.THREAD_ERROR_MODE;
 [assembly: SupportedOSPlatform("windows10.0.19041.0")]
 [assembly: AssemblyCopyright("Copyright © Flarial 2025 - 2026")]
 
-file static class AssemblyInfo
+namespace Flarial.Runtime;
+
+ static class AssemblyInfo
 {
     [ModuleInitializer]
-    internal static void ModuleInitializer() => SetErrorMode(SEM_FAILCRITICALERRORS);
+    internal static void ModuleInitializer()=> SetErrorMode(SEM_FAILCRITICALERRORS);
 }
