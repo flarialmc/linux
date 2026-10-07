@@ -86,9 +86,12 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
         return ProcScan.Alive(pid) && !WinedbgRunning();
     }
 
+    /// <summary>Read (and removed from its own environment) by injector.exe; an environment variable is only readable by this user, unlike argv.</summary>
+    internal const string PayloadVariable = "FLARIAL_LAUNCHER_PAYLOAD";
+
     static string ToWine(string path) => path.Length > 2 && path[1] == ':' && path[2] == '\\' ? path : "Z:" + Path.GetFullPath(path).Replace('/', '\\');
 
-    public async Task<InjectResult> InjectAsync(IReadOnlyList<string> libraries, uint gamePid, TimeSpan delay, CancellationToken ct)
+    public async Task<InjectResult> InjectAsync(IReadOnlyList<string> libraries, uint gamePid, TimeSpan delay, string? payload, CancellationToken ct)
     {
         if (libraries.Count == 0) return new(false, -1, "No library to inject.");
         var dll = Path.GetFullPath(libraries[^1]);
@@ -99,9 +102,9 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
 
         await EnsureInjectorExeAsync(ct);
         if (!await WaitReady(pid, delay, ct)) return new(false, -1, "Minecraft exited before injection.");
-        LaunchLog.Phase($"inject start ({libraries.Count - 1} dependencies + client)");
+        LaunchLog.Phase($"inject start ({libraries.Count - 1} dependencies + client{(payload is null ? "" : ", launcher payload")})");
 
-        var env = new Dictionary<string, string?> { ["WINEPREFIX"] = Paths.Prefix, ["WINEESYNC"] = "1", ["WINEFSYNC"] = "1", ["WINEDEBUG"] = "-all" };
+        var env = new Dictionary<string, string?> { ["WINEPREFIX"] = Paths.Prefix, ["WINEESYNC"] = "1", ["WINEFSYNC"] = "1", ["WINEDEBUG"] = "-all", [PayloadVariable] = payload };
         var info = Proc.Info(engine.Wine, [Paths.Injector, "Minecraft.Windows.exe", .. libraries.Select(ToWine)], env);
         // a process that was only just created may not be openable yet (not found / OpenProcess / CreateRemoteThread fail): retry briefly with a small backoff
         // injector.exe is bounded: a LoadLibrary hung in the target (loader lock) or a game that died under it must never leave it running forever

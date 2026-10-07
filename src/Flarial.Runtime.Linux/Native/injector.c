@@ -16,6 +16,13 @@
  *
  * Build: x86_64-w64-mingw32-gcc -O2 -municode -s injector.c -o ../bol/injector.exe
  * Usage: injector.exe <process.exe> <dll> [<dll>...]   (dependencies first, the modification last)
+ *
+ * Launcher payload: when the environment variable FLARIAL_LAUNCHER_PAYLOAD (UTF-8 JSON, e.g. {"access_token":"..."}) is
+ * set, it is removed from the injector's own environment and attached to the loader thread of the LAST library (the
+ * client) as its thread description before that thread starts. This is the same channel the Windows launcher uses
+ * (FlarialClient.Loader: SetThreadDescription on the suspended LoadLibraryW thread); the client reads and clears it with
+ * GetThreadDescription(GetCurrentThread()) in DLL_PROCESS_ATTACH. An environment variable (readable only by the same
+ * user in /proc) is used instead of argv, which any local user can read.
  */
 #include <windows.h>
 #include <winternl.h>
@@ -92,9 +99,47 @@ static DWORD find_pid(const wchar_t *name)
     return pid;
 }
 
-/* Loads one library into the target through LoadLibraryW on a remote thread.
+typedef HRESULT (WINAPI *SetThreadDescription_t)(HANDLE, PCWSTR);
+
+#define PAYLOAD_ENV L"FLARIAL_LAUNCHER_PAYLOAD"
+#define PAYLOAD_MAX_CHARS (64 * 1024)   /* the client rejects anything larger */
+
+/* Takes the payload out of the environment (NULL when absent or too large). The launcher builds it with the JSON
+ * serializer, which escapes everything outside ASCII, so Wine's Unix-to-UTF-16 conversion of the variable is exact. */
+static wchar_t *take_payload(void)
+{
+    DWORD need = GetEnvironmentVariableW(PAYLOAD_ENV, NULL, 0);
+    if (!need) return NULL;
+    wchar_t *wide = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (SIZE_T)need * sizeof(wchar_t));
+    if (!wide) return NULL;
+    DWORD got = GetEnvironmentVariableW(PAYLOAD_ENV, wide, need);
+    SetEnvironmentVariableW(PAYLOAD_ENV, NULL);
+    if (got && got < need && got <= PAYLOAD_MAX_CHARS) return wide;
+    SecureZeroMemory(wide, (SIZE_T)need * sizeof(wchar_t));
+    HeapFree(GetProcessHeap(), 0, wide);
+    return NULL;
+}
+
+/* Attaches the payload to a not yet started thread. Failure is only a warning (as upstream, which ignores the result):
+ * the client then simply runs signed out. */
+static void describe_thread(HANDLE th, const wchar_t *payload)
+{
+    SetThreadDescription_t set = NULL;
+    const wchar_t *modules[] = { L"kernelbase.dll", L"kernel32.dll" };
+    for (int i = 0; i < 2 && !set; ++i) {
+        HMODULE m = GetModuleHandleW(modules[i]);
+        if (m) set = (SetThreadDescription_t)(void *)GetProcAddress(m, "SetThreadDescription");
+    }
+    if (!set) { fwprintf(stderr, L"WARN payload not delivered: SetThreadDescription is unavailable\n"); return; }
+    HRESULT hr = set(th, payload);
+    if (FAILED(hr)) fwprintf(stderr, L"WARN payload not delivered: SetThreadDescription 0x%08lx\n", (unsigned long)hr);
+    else fwprintf(stderr, L"INFO payload delivered (%u chars)\n", (unsigned)wcslen(payload));
+}
+
+/* Loads one library into the target through LoadLibraryW on a remote thread. With a payload the thread is created
+ * suspended and described before it runs, so the library's DllMain sees it on its own (current) thread.
  * Returns 0 on success or the exit code to report. */
-static int load_library(HANDLE h, const wchar_t *dll)
+static int load_library(HANDLE h, const wchar_t *dll, const wchar_t *payload)
 {
     SIZE_T n = (wcslen(dll) + 1) * sizeof(wchar_t);
     void *rem = VirtualAllocEx(h, NULL, n, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -113,11 +158,21 @@ static int load_library(HANDLE h, const wchar_t *dll)
     HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
     FARPROC loadlib = GetProcAddress(k32, "LoadLibraryW");
     HANDLE th = CreateRemoteThread(h, NULL, 0, (LPTHREAD_START_ROUTINE)loadlib,
-                                   rem, 0, NULL);
+                                   rem, payload ? CREATE_SUSPENDED : 0, NULL);
     if (!th) {
         fwprintf(stderr, L"ERR CreateRemoteThread: %lu\n", GetLastError());
         VirtualFreeEx(h, rem, 0, MEM_RELEASE);
         return 6;
+    }
+    if (payload) {
+        describe_thread(th, payload);
+        if (ResumeThread(th) == (DWORD)-1) {
+            fwprintf(stderr, L"ERR ResumeThread: %lu\n", GetLastError());
+            TerminateThread(th, 0);
+            CloseHandle(th);
+            VirtualFreeEx(h, rem, 0, MEM_RELEASE);
+            return 6;
+        }
     }
 
     DWORD wait = WaitForSingleObject(th, 15000);
@@ -161,6 +216,7 @@ int wmain(int argc, wchar_t **argv)
 {
     if (argc < 3) { fwprintf(stderr, L"usage: injector <process.exe> <dll> [<dll>...]\n"); return 2; }
     const wchar_t *proc = argv[1];
+    wchar_t *payload = take_payload();   /* for the last library only; wiped before every return below */
 
     DWORD pid = find_pid(proc);
     if (!pid) { fwprintf(stderr, L"ERR process not found: %ls\n", proc); return 3; }
@@ -172,15 +228,16 @@ int wmain(int argc, wchar_t **argv)
 
     int last = argc - 1;
     for (int i = 2; i < last; ++i) {
-        int dep = load_library(h, argv[i]);
+        int dep = load_library(h, argv[i], NULL);
         if (dep) fwprintf(stderr, L"WARN dependency not loaded (%d): %ls\n", dep, argv[i]);
         /* a timed-out LoadLibrary still holds the loader lock in the target: every further remote load would
          * block behind it for its full wait, so stop here instead of stacking 15 s timeouts */
         if (dep == 8) { CloseHandle(h); return 8; }
     }
 
-    int code = load_library(h, argv[last]);
+    int code = load_library(h, argv[last], payload);
     CloseHandle(h);
+    if (payload) { SecureZeroMemory(payload, wcslen(payload) * sizeof(wchar_t)); HeapFree(GetProcessHeap(), 0, payload); }
     if (code) return code;
 
     fwprintf(stderr, L"OK injected %ls into %ls (pid %lu)\n", argv[last], proc, pid);

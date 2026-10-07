@@ -40,7 +40,7 @@ public sealed class LinuxInjector : IInjector
         catch { return "minecraft.log unreadable"; }
     }
 
-    public bool Inject(IReadOnlyList<string> libraries, uint processId)
+    public bool Inject(IReadOnlyList<string> libraries, uint processId, string? payload)
     {
         var dllPath = libraries[^1];
         // the wait cap counts from a launch we did ourselves; an already running game needs none
@@ -54,7 +54,7 @@ public sealed class LinuxInjector : IInjector
         // It is a dependency like the client's others (injected before the client DLL, which stays last) and is best-effort at runtime.
         Core.EnsureInjectorExeAsync(CancellationToken.None).GetAwaiter().GetResult();
         libraries = [Paths.BcryptShim, .. libraries];
-        var r = Core.InjectAsync(libraries, processId, wait, CancellationToken.None).GetAwaiter().GetResult();
+        var r = Core.InjectAsync(libraries, processId, wait, payload, CancellationToken.None).GetAwaiter().GetResult();
         // intermittent engine crash during startup (before the client exists): relaunch, at most twice, never in a loop
         for (var retry = 1; !r.Ok && r.Message == "Minecraft exited before injection." && retry <= MaxRetries && DateTime.UtcNow - LinuxGameService.LastLaunchUtc < TimeSpan.FromMinutes(2); retry++)
         {
@@ -64,7 +64,7 @@ public sealed class LinuxInjector : IInjector
             if (LinuxGameService.Current?.Launch() is not { } pid) { LaunchLog.Note($"retry {retry}: relaunch failed"); break; }
             LaunchLog.Note($"retry {retry}: relaunched (pid {pid})");
             processId = pid;
-            r = Core.InjectAsync(libraries, pid, TimeSpan.FromSeconds(Settings.InjectDelaySeconds), CancellationToken.None).GetAwaiter().GetResult();
+            r = Core.InjectAsync(libraries, pid, TimeSpan.FromSeconds(Settings.InjectDelaySeconds), payload, CancellationToken.None).GetAwaiter().GetResult();
         }
         if (r.Ok) s_last = Path.GetFileName(dllPath);
         else

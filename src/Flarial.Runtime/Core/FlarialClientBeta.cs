@@ -1,6 +1,5 @@
 using System.IO;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using Flarial.Runtime.Game;
 using Flarial.Runtime.Services;
@@ -15,13 +14,7 @@ public sealed class FlarialClientBeta : FlarialClient<FlarialClientBeta>
     private protected override string FileName => "Flarial.Client.Beta.dll";
     private protected override string HashesUri => "https://api.flarial.xyz/api/v2/beta/dll/hash";
 
-    internal string? AccessToken
-    {
-        set => Interlocked.Exchange(ref field, value);
-        get => Interlocked.CompareExchange(ref field, null, null);
-    }
-
-    private protected override async Task<bool> VerifyClientAsync()
+    private protected override async Task<bool> VerifyAsync()
     {
         /*
             - Inspect the client's commit hash via an exported symbol.
@@ -38,7 +31,7 @@ public sealed class FlarialClientBeta : FlarialClient<FlarialClientBeta>
         return image.Exports.Contains(symbol);
     }
 
-    private protected override async Task<bool> DownloadClientAsync<T>(T progress)
+    private protected override async Task<bool> OnDownloadAsync<T>(T progress)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, DownloadUri);
         request.Headers.Authorization = new("Bearer", AccessToken);

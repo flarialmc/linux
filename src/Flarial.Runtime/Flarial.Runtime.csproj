@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <Compile Include="..\AssemblyVersion.cs" />
-    <InternalsVisibleTo Include="Flarial.Runtime.Linux" />
   </ItemGroup>
 
 </Project>

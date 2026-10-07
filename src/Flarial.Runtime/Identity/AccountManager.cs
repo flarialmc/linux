@@ -1,16 +1,16 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Flarial.Runtime.Services;
 
-namespace Flarial.Runtime.Identity.Discord;
+namespace Flarial.Runtime.Identity;
 
-[Obsolete(" ", true)]
 public static class AccountManager
 {
-    const string UserAgent = "Samsung AI-Powered Washing Machine";
-    const string PremiumUri = "https://api.flarial.xyz/android/premium/discord";
+    const string AccountUri = "https://api.flarial.xyz/api/v2/account";
 
     static readonly SemaphoreSlim s_semaphore = new(1, 1);
 
@@ -22,7 +22,7 @@ public static class AccountManager
         }
         finally { s_semaphore.Release(); }
     }
-    
+
     public static async Task<AccountDetails?> LoginAsync()
     {
         await s_semaphore.WaitAsync(); try
@@ -30,19 +30,33 @@ public static class AccountManager
             if (await AuthenticationManager.AuthenticateSilentlyAsync() is not { } accessToken)
                 return null;
 
-            using HttpRequestMessage request = new(HttpMethod.Post, PremiumUri);
-
-            request.Headers.UserAgent.ParseAdd(UserAgent);
+            using HttpRequestMessage request = new(HttpMethod.Get, AccountUri);
             request.Headers.Authorization = new("Bearer", accessToken);
 
             using var response = await HttpService.SendAsync(request);
             if (!response.IsSuccessStatusCode) return null;
 
             using var stream = await response.Content.ReadAsStreamAsync();
-            var metadata = await JsonService.Default.ReadAsync<AccountMetadata>(stream);
+            using var document = await JsonDocument.ParseAsync(stream);
 
-            return new(metadata);
+            var user = document.RootElement.GetProperty("user");
+            var entitlements = document.RootElement.GetProperty("entitlements");
+
+            var avatarUrl = user.GetProperty("avatar_url").GetString();
+            var displayName = user.GetProperty("display_name").GetString()!;
+
+            var beta = entitlements.GetProperty("beta");
+            var flarialPlus = entitlements.GetProperty("flarial_plus");
+
+            return new(new()
+            {
+                AvatarUrl = avatarUrl,
+                DisplayName = displayName,
+                HasBetaAccess = beta.GetProperty("active").GetBoolean(),
+                HasFlarialPlus = flarialPlus.GetProperty("active").GetBoolean(),
+            });
         }
+        catch { _ = LogoutAsync(); throw; }
         finally { s_semaphore.Release(); }
     }
 
@@ -50,7 +64,7 @@ public static class AccountManager
     {
         await s_semaphore.WaitAsync(); try
         {
-            RefreshTokenManager._.Remove();
+            await AuthenticationManager.RevokeAsync();
         }
         finally { s_semaphore.Release(); }
     }

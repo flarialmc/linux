@@ -42,8 +42,12 @@ public interface IGameService
 /// <summary>Injects a DLL into the running game process.</summary>
 public interface IInjector
 {
-    /// <summary>Loads each library into the process in order (dependencies first, the modification last); true when the last one loaded.</summary>
-    bool Inject(System.Collections.Generic.IReadOnlyList<string> libraries, uint processId);
+    /// <summary>
+    /// Loads each library into the process in order (dependencies first, the modification last); true when the last one loaded.
+    /// <paramref name="payload"/> (null for custom DLLs) is a JSON string handed to the modification's loader thread as its thread
+    /// description, so the client can read it in DLL_PROCESS_ATTACH (the account access token, see FlarialClient.CreatePayload).
+    /// </summary>
+    bool Inject(System.Collections.Generic.IReadOnlyList<string> libraries, uint processId, string? payload);
 
     /// <summary>The game's system directory in its own path syntax (e.g. C:\windows\system32); DLL imports are resolved against it.</summary>
     string SystemDirectory { get; }

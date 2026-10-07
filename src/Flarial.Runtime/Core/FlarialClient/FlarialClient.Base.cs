@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Flarial.Runtime.Game;
 using Flarial.Runtime.Services;
 
 namespace Flarial.Runtime.Core;
 
-public abstract class FlarialClient<T> : FlarialClient where T : FlarialClient<T>, new()
+public abstract partial class FlarialClient<T> : FlarialClient where T : FlarialClient<T>, new()
 {
     public static readonly T _ = new();
 
@@ -15,6 +16,17 @@ public abstract class FlarialClient<T> : FlarialClient where T : FlarialClient<T
     {
         if (_ is null) return;
         throw new InvalidOperationException();
+    }
+
+    /// <param name="prepared">Optional verify/download of this client still in flight: the game is launched concurrently and injection waits for it.</param>
+    public override bool Launch(Task<bool>? prepared = null)
+    {
+        if (!IsRunning && Loader.Launch(prepared))
+        {
+            PostAnalytics();
+            return true;
+        }
+        return false;
     }
 }
 
@@ -26,23 +38,17 @@ public abstract partial class FlarialClient
     private protected abstract string FileName { get; }
     private protected abstract string HashesUri { get; }
 
-    private protected abstract Task<bool> VerifyClientAsync();
-    private protected abstract Task<bool> DownloadClientAsync<T>(T progress) where T : IProgress<int>;
+    public abstract bool Launch(Task<bool>? prepared = null);
+    private protected abstract Task<bool> VerifyAsync();
+    private protected abstract Task<bool> OnDownloadAsync<T>(T progress) where T : IProgress<int>;
+
+    internal static string? AccessToken
+    {
+        set => Interlocked.Exchange(ref field, value);
+        get => Interlocked.CompareExchange(ref field, null, null);
+    }
 
     private protected FlarialClient() { }
-
-    public static bool IsRunning => Platform.Platform.Injector.IsClientRunning;
-
-    /// <param name="prepared">Optional verify/download of this client still in flight: the game is launched concurrently and injection waits for it.</param>
-    public bool Launch(Task<bool>? prepared = null)
-    {
-        if (!IsRunning && InjectionSession.Launch(new(FileName), prepared))
-        {
-            _ = PostAnalyticsAsync();
-            return true;
-        }
-        return false;
-    }
 
     private protected async Task<string> GetRemoteHashAsync()
     {
@@ -50,14 +56,16 @@ public abstract partial class FlarialClient
         return json[HashName];
     }
 
+    public static bool IsRunning => Platform.Platform.Injector.IsClientRunning;
+
     public async Task<bool> DownloadAsync<T>(T progress) where T : IProgress<int>
     {
-        if (await VerifyClientAsync())
+        if (await VerifyAsync())
             return true;
 
         try { File.Delete(FileName); }
         catch { return false; }
 
-        return await DownloadClientAsync(progress);
+        return await OnDownloadAsync(progress);
     }
-}
+}

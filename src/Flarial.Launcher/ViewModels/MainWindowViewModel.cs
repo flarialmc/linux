@@ -59,6 +59,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     async Task LoginWithDiscordAsync()
     {
+        HomeViewModel.LauncherStatus = "Authenticating...";
         await SettingsViewModel.SettingsGeneralViewModel.LoginAsync();
         SettingsViewModel.SettingsGeneralViewModel.LoginActive = false;
     }

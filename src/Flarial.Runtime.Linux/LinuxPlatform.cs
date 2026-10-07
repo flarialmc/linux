@@ -18,6 +18,7 @@ public static class LinuxPlatform
     public static System.Threading.Tasks.Task<int> SelfTestAsync(string name) => name switch
     {
         "dependencies" => DependenciesSelfTest.RunAsync(),
+        "payload" => PayloadSelfTest.RunAsync(),
         "updater" => Update.UpdaterSelfTest.RunAsync(),
         "engine" => Engine.EngineSelfTest.RunAsync(),
         "umu" => System.Threading.Tasks.Task.FromResult(Launch.LauncherCore.ExtractUmu() is var d && d.EndsWith(".d") ? 0 : 1),

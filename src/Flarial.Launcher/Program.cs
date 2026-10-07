@@ -18,13 +18,17 @@ static class Program
     {
         LinuxPlatform.Use();
         Flarial.Launcher.Management.AccountsService.Current = new Flarial.Launcher.Management.LinuxAccountsService();
+        // self-tests run before the single-instance check, so they also work while the launcher is open (they use their own XDG_DATA_HOME)
+        if (args.Length > 0 && args[0].StartsWith("--selftest-"))
+        {
+            Environment.CurrentDirectory = Directory.CreateDirectory(LinuxPlatform.LauncherDataDirectory).FullName;
+            Environment.Exit(LinuxPlatform.SelfTestAsync(args[0]["--selftest-".Length..]).GetAwaiter().GetResult());
+        }
+
         using Mutex mutex = new(false, "54874D29-646C-4536-B6D1-8E05053BE00E", out var created);
         if (!created) return;
 
         Environment.CurrentDirectory = Directory.CreateDirectory(LinuxPlatform.LauncherDataDirectory).FullName;
-
-        if (args.Length > 0 && args[0].StartsWith("--selftest-"))
-            Environment.Exit(LinuxPlatform.SelfTestAsync(args[0]["--selftest-".Length..]).GetAwaiter().GetResult());
 
         if (args.Length > 0 && args[0] == "--install") Environment.Exit(Flarial.Runtime.Linux.Update.LauncherUpdater.SelfInstall());
         if (Flarial.Runtime.Linux.Update.LauncherUpdater.ForRunningInstall() is { } updater)
