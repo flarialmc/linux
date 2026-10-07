@@ -77,14 +77,14 @@ Logs are in `~/.local/share/Flarial/Linux/logs`: `launcher.log`, `launch.log` (l
 - The game is downloaded with `xodus-cli` (a separate subprocess) using your Microsoft account, and decrypted on every launch after a license check. Game files are never redistributed.
 - The game runs on a prebuilt GDK-Proton engine (Wine with WineGDK, DXVK, vkd3d-proton) inside the Steam Linux Runtime via `umu-launcher`.
 - A device-code Xbox login feeds Xbox Live tokens into the Wine prefix so in-game sign-in works.
-- The Flarial client DLL is injected with a small Windows injector run under Wine, after its dependencies are loaded. A fake Windows PasswordVault in the prefix is synced with launcher credentials for the client.
+- The Flarial client DLL is injected with a small Windows injector run under Wine, after its dependencies are loaded. Like the Windows launcher, it hands the client your Flarial account access token (when signed in) through the loader thread, see [docs/account-payload.md](docs/account-payload.md). A fake Windows PasswordVault in the prefix is still synced with launcher credentials for client builds that read their refresh token from it.
 
 Architecture:
 
 - `src/Flarial.Launcher`: Avalonia UI and view models, ported 1:1 from [flarialmc/Flarial.Launcher](https://github.com/flarialmc/Flarial.Launcher)
 - `src/Flarial.Runtime`: cross-platform backend (HTTP, OAuth, DLL download, version registry, settings) that talks to the OS only through `Platform/Platform.cs`
-- `src/Flarial.Runtime.Linux`: Linux backend, modules `Xodus`, `Xbox`, `Engine`, `Prefix`, `Launch`, `Injection`, `Update`; native helpers in `Native/` (`injector.c`, `flarial_vault.cpp`, `flarial_bcrypt_shim.cpp`, see `docs/wine-bcrypt-oaep.md`)
-- `src/Flarial.Runtime.Windows`: original Windows sources, kept for reference and not built
+- `src/Flarial.Runtime.Linux`: Linux backend, modules `Xodus`, `Xbox`, `Engine`, `Prefix`, `Launch`, `Injection`, `Update`; native helpers in `Native/` (`injector.c` (loads the DLLs and delivers the account payload), `flarial_vault.cpp`, `flarial_bcrypt_shim.cpp`, see `docs/wine-bcrypt-oaep.md`)
+- `src/Flarial.Runtime.Windows`: original Windows sources, synced with upstream and not built (its `FlarialClient.Loader` has the Linux twin in `src/Flarial.Runtime/Core/FlarialClient/FlarialClient.Loader.cs`)
 
 ## Building from source
 
@@ -97,6 +97,8 @@ dotnet publish src/Flarial.Launcher -c Release -r linux-x64 --self-contained -p:
 ```
 
 `Native/flarial_vault.dll`, `Native/flarial_bcrypt_shim.dll` (`build-bcrypt-shim.sh`) and `Native/injector.exe` are prebuilt and committed (embedded resources); rebuild them with `MSVC_BIN=<path to your msvc-wine bin/x64> src/Flarial.Runtime.Linux/Native/build-vault.sh` (and `build-injector.sh`). Building them in CI is a future improvement.
+
+Checks (run them with a scratch data directory so they never touch your install: `T=$(mktemp -d); XDG_DATA_HOME=$T HOME=$T Flarial.Launcher --selftest-<name>`): `--selftest-dependencies`, `--selftest-engine`, `--selftest-xodus`, `--selftest-updater` and `--selftest-payload` (JSON encoding and the client's acceptance rules). `tests/payload-probe/run.sh` additionally injects a probe DLL into a stand-in game in a scratch Wine prefix and reads the payload back with `GetThreadDescription`, like the client does; `tests/bcrypt-shim/run.sh` tests the bcrypt shim.
 
 Developer only: `FLARIAL_LINUX_SEED_FROM=<BedrockOnLinux dir>` links an existing engine/umu/xodus/game and copies its logins instead of downloading them. Do not use it for normal installs.
 

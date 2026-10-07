@@ -1,12 +1,13 @@
-# UI deviations from upstream (flarialmc/Flarial.Launcher main d7a4264 "Use Flarial OAuth2.")
+# UI deviations from upstream (flarialmc/Flarial.Launcher main 80b017b "Version -> '2026.10.6.734'")
 
-No `.axaml`, style, animation, converter, control, font or image file was modified (compare with upstream: `git diff d7a4264 HEAD -- '*.axaml'` only shows the files listed below). Only the following launcher lines changed.
+No `.axaml`, style, animation, converter, control, font or image file was modified (compare with upstream: `git diff 80b017b HEAD -- '*.axaml'` only shows the files listed below). Only the following launcher lines changed.
 
 | File | Change | Reason |
 |---|---|---|
 | `Flarial.Launcher.csproj` | TFM `net10.0-windows10.0.19041.0` -> `net10.0`; `Avalonia.Win32` -> `Avalonia.X11`; added `SkiaSharp.NativeAssets.Linux 4.153.1` (matches managed SkiaSharp); dropped the MSIX tooling (`Microsoft.Windows.SDK.BuildTools*`, Release MSIX properties, `Package.appxmanifest`/`Assets`, kept in `Flarial.Runtime.Windows/Package`); ProjectReference to `Flarial.Runtime.Linux`; dropped `ApplicationManifest` and its `AvaloniaResource Remove` | Windows-only |
 | `Resources/app.manifest` | deleted | Windows manifest |
 | `Program.cs` | `UseWin32()` -> `UseX11()`; `LinuxPlatform.Use()` registers backend; data dir `Flarial\Launcher` -> `Path.Combine("Flarial","Launcher")` (=`~/.local/share/Flarial/Launcher`) | Windows-only / path separator |
+| `Program.cs` (self-tests) | `--selftest-*` is dispatched before the single-instance mutex, so the checks also run while the launcher is open | dev tooling; the self-tests use their own `XDG_DATA_HOME` |
 | `AssemblyInfo.cs` | `SupportedOSPlatform("windows...")` -> `linux`; crash dialog (`TaskDialog`) now zenity/kdialog + stderr (same title/text) | Windows-only API |
 | `Views/MainWindow.axaml.cs` | removed unused `using Windows.Win32;`; added `ScreenshotDriver.Start(this)` (no-op unless `FLARIAL_SHOT` is set) | Windows-only using / dev capture tool |
 | `ViewModels/MainWindowViewModel.cs` | removed `LauncherMigrationDialog` (MSIX migration) and `FlarialLauncher.DownloadAsync` (self-update that downloads an installer and exits) from `OnLoaded` | self-update disabled entirely, MSIX is Windows-only |
