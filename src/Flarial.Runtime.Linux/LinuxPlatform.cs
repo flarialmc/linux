@@ -24,6 +24,7 @@ public static class LinuxPlatform
         "umu" => System.Threading.Tasks.Task.FromResult(Launch.LauncherCore.ExtractUmu() is var d && d.EndsWith(".d") ? 0 : 1),
         "xodus" => Xodus.XodusSelfTest.RunAsync(),
         "hive" => System.Threading.Tasks.Task.FromResult(Prefix.HiveEdit.SetString(Environment.GetEnvironmentVariable("FLARIAL_HIVE")!, @"Software\\Wine\\WineGDK", "RefreshToken", Environment.GetEnvironmentVariable("FLARIAL_HIVE_TOKEN")) ? 0 : 1),
+        "import" => GameContent.SelfTest(),
         _ => System.Threading.Tasks.Task.FromResult(2)
     };
 

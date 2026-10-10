@@ -39,6 +39,23 @@
                     </UniformGrid>
 
                     <Grid HorizontalAlignment="Left">
+                        <TextBlock Margin="0,0,0,5" Text="Game" FontSize="22" FontWeight="SemiBold"/>
+                        <Border Margin="0,0,0,5" VerticalAlignment="Bottom" Background="#FF2438" Height="3" />
+                    </Grid>
+
+                    <UniformGrid Rows="1" ColumnSpacing="10">
+                        <Button Command="{Binding OpenInstallationFolder}" Classes="GenericButton" CornerRadius="7.5" Content="Open Installation Directory" FontSize="16" />
+                        <Button Command="{Binding OpenDataFolder}" Classes="GenericButton" CornerRadius="7.5" Content="Open Data Directory" FontSize="16" />
+                    </UniformGrid>
+
+                    <UniformGrid Rows="2" Columns="2" ColumnSpacing="10" RowSpacing="5">
+                        <Button Command="{Binding ImportResourcePack}" Classes="GenericButton" CornerRadius="7.5" Content="Import Resource Pack" FontSize="16" />
+                        <Button Command="{Binding ImportWorld}" Classes="GenericButton" CornerRadius="7.5" Content="Import World" FontSize="16" />
+                        <Button Command="{Binding ImportAddon}" Classes="GenericButton" CornerRadius="7.5" Content="Import Add-On" FontSize="16" />
+                        <Button Command="{Binding ImportTemplate}" Classes="GenericButton" CornerRadius="7.5" Content="Import World Template" FontSize="16" />
+                    </UniformGrid>
+
+                    <Grid HorizontalAlignment="Left">
                         <TextBlock Margin="0,0,0,5" Text="Launcher" FontSize="22" FontWeight="SemiBold"/>
                         <Border Margin="0,0,0,5" VerticalAlignment="Bottom" Background="#FF2438" Height="3" />
                     </Grid>

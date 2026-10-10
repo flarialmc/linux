@@ -56,8 +56,8 @@ Everything is under `~/.local/share/Flarial/Linux` (or `$XDG_DATA_HOME/Flarial/L
 
 | Path | Contents |
 |---|---|
-| `games/` | Downloaded Minecraft versions |
-| `compatdata/pfx` | Wine prefix; the Flarial client folder lives inside it (Settings > General > Open Client Folder) |
+| `games/` | Downloaded Minecraft versions (Settings > General > Open Installation Directory) |
+| `compatdata/pfx` | Wine prefix; the Flarial client folder lives inside it (Settings > General > Open Client Folder); game data, worlds and packs are in its `AppData/Roaming/Minecraft Bedrock` (Open Data Directory, or use the Import buttons for .mcpack/.mcworld/.mcaddon/.mctemplate files) |
 | `proton/`, `umu/`, `xodus/` | Engine, umu-run and xodus-cli |
 | `xodus-home/`, `msa/`, `winegdk-preauth/` | Microsoft/Xbox login state |
 | `logs/` | Logs |

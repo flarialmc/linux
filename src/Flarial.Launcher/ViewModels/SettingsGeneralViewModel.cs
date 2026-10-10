@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -83,6 +84,58 @@ public sealed partial class SettingsGeneralViewModel : ViewModelBase
     public ReactiveCommand<RxVoid, RxVoid> Logout { get; }
     public ReactiveCommand<RxVoid, RxVoid> OpenClientFolder { get; }
     public ReactiveCommand<RxVoid, RxVoid> OpenLauncherFolder { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OpenInstallationFolder { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OpenDataFolder { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ImportResourcePack { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ImportWorld { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ImportAddon { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ImportTemplate { get; }
+
+    static readonly FilePickerOpenOptions s_resourcePackOptions = new()
+    {
+        AllowMultiple = true,
+        FileTypeFilter = [new("Minecraft Packs") { Patterns = ["*.mcpack", "*.zip"] }]
+    };
+
+    static readonly FilePickerOpenOptions s_worldOptions = new()
+    {
+        AllowMultiple = true,
+        FileTypeFilter = [new("Minecraft Worlds") { Patterns = ["*.mcworld"] }]
+    };
+
+    static readonly FilePickerOpenOptions s_addonOptions = new()
+    {
+        AllowMultiple = true,
+        FileTypeFilter = [new("Minecraft Add-Ons") { Patterns = ["*.mcaddon"] }]
+    };
+
+    static readonly FilePickerOpenOptions s_templateOptions = new()
+    {
+        AllowMultiple = true,
+        FileTypeFilter = [new("Minecraft Templates") { Patterns = ["*.mctemplate"] }]
+    };
+
+    async Task ImportAsync(FilePickerOpenOptions options)
+    {
+        var application = Application.Current!;
+        var lifetime = (IClassicDesktopStyleApplicationLifetime)application.ApplicationLifetime!;
+        var files = await lifetime.MainWindow!.StorageProvider.OpenFilePickerAsync(options);
+
+        foreach (var file in files)
+        {
+            var path = file.TryGetLocalPath()!;
+
+            try
+            {
+                var summary = await Task.Run(() => Flarial.Runtime.Linux.GameContent.Import(path));
+                _mainWindowViewModel.NotificationArea.Add(summary);
+            }
+            catch (Exception exception)
+            {
+                _mainWindowViewModel.NotificationArea.Add(exception.Message);
+            }
+        }
+    }
 
     async Task OnOpenAsync()
     {
@@ -100,6 +153,10 @@ public sealed partial class SettingsGeneralViewModel : ViewModelBase
     void OnOpenLauncherFolder() => NativeMethods.ShellExecute(".");
 
     void OnOpenClientFolder() => NativeMethods.ShellExecute(Flarial.Runtime.Linux.LinuxPlatform.ClientDirectory);
+
+    void OnOpenInstallationFolder() => NativeMethods.ShellExecute(Flarial.Runtime.Linux.GameContent.InstallationDirectory);
+
+    void OnOpenDataFolder() => NativeMethods.ShellExecute(Flarial.Runtime.Linux.GameContent.DataDirectory);
 
     readonly AppSettings _settings;
     readonly MainWindowViewModel _mainWindowViewModel;
@@ -136,6 +193,12 @@ public sealed partial class SettingsGeneralViewModel : ViewModelBase
         Logout = ReactiveCommand.CreateFromTask(OnLogoutAsync);
         OpenClientFolder = ReactiveCommand.Create(OnOpenClientFolder);
         OpenLauncherFolder = ReactiveCommand.Create(OnOpenLauncherFolder);
+        OpenInstallationFolder = ReactiveCommand.Create(OnOpenInstallationFolder);
+        OpenDataFolder = ReactiveCommand.Create(OnOpenDataFolder);
+        ImportResourcePack = ReactiveCommand.CreateFromTask(() => ImportAsync(s_resourcePackOptions));
+        ImportWorld = ReactiveCommand.CreateFromTask(() => ImportAsync(s_worldOptions));
+        ImportAddon = ReactiveCommand.CreateFromTask(() => ImportAsync(s_addonOptions));
+        ImportTemplate = ReactiveCommand.CreateFromTask(() => ImportAsync(s_templateOptions));
     }
 
     async Task OnLoginAsync()
