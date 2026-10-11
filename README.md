@@ -33,6 +33,15 @@ Arch Linux / CachyOS (AUR):
 yay -S flarial-launcher-bin
 ```
 
+NixOS / Home Manager (flake input `github:flarialmc/linux`):
+
+```nix
+inputs.flarial-linux.url = "github:flarialmc/linux";
+
+environment.systemPackages = [ flarial-linux.packages.${pkgs.system}.default ]; # NixOS
+home.packages = [ flarial-linux.packages.${pkgs.system}.default ]; # Home Manager
+```
+
 The installer needs no root. Re-running it updates or repairs the install. Downloads are verified by size, SHA-256 and an ECDSA signature. See [packaging/README.md](packaging/README.md).
 
 ### Uninstall
