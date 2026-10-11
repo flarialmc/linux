@@ -71,6 +71,7 @@ Logs are in `~/.local/share/Flarial/Linux/logs`: `launcher.log`, `launch.log` (l
 - **Game does not start or crashes at the graphics stage**: check that Vulkan works (`vulkaninfo`), that your driver is current, and read `minecraft.log`.
 - **First launch takes a long time**: expected, see above. Do not close the launcher while it is installing.
 - **Game refuses to launch with a license error**: the account must own Minecraft for Windows, and a license check happens on every launch, so you need to be online.
+- **Microsoft login crashes on Wayland or opens a blank window with NVIDIA**: the launcher disables WebKit DMA-BUF rendering for the login subprocess when the NVIDIA driver is loaded, and uses X11/XWayland for that window when `DISPLAY` is available. You can stay in your Wayland desktop. Explicit `GDK_BACKEND` and `WEBKIT_DISABLE_DMABUF_RENDERER` values take precedence. On older launcher builds, close the launcher and run `GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 flarial-launcher`, then sign in again. See [Xodus issue #167](https://github.com/xodus-gaming/xodus/issues/167).
 
 ## How it works
 
