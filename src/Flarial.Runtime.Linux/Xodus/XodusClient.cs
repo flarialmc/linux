@@ -139,6 +139,7 @@ internal sealed partial class XodusClient : IXodus
         ResetWebviewState(); // a half-finished earlier sign-in is otherwise resumed into a blank page
         // setsid: own session so the webview's children die with the kill below
         var info = Proc.Info("setsid", ["-w", Paths.XodusBin, "login"], CliEnv());
+        XodusLoginEnvironment.Apply(info.Environment, File.Exists("/proc/driver/nvidia/version"));
         using var p = Process.Start(info)!;
         _login = p;
         p.StandardInput.Close();
