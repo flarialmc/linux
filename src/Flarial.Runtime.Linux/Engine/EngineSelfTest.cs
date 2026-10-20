@@ -36,6 +36,8 @@ static class EngineSelfTest
         var ok = await Download.Sha256Async(f) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
         Console.WriteLine("sha256 known-answer: " + ok);
         File.Delete(f);
+        if (Environment.GetEnvironmentVariable("FLARIAL_TEST_XGR") is { } xgrPath)
+            Prefix.PrefixManager.PatchXgameruntime(xgrPath);
         return fail || !ok ? 1 : 0;
     }
 }

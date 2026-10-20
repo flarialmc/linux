@@ -3,10 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Flarial.Runtime.Linux.Engine;
+using Flarial.Runtime.Linux.Launch;
 
 namespace Flarial.Runtime.Linux.Prefix;
 
@@ -16,6 +18,10 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
     const string GdkDepsUrl = "https://github.com/minecraft-linux/mcpelauncher-gdk-dependencies/releases/download/v0.0.0";
     const string CacertUrl = "https://curl.se/ca/cacert.pem";
     const string WineGdkKey = @"HKEY_LOCAL_MACHINE\Software\Wine\WineGDK";
+    const string XgrSha = "f1d5569ce40ab9b973336a5f3cf2e65b367dc535029d243e3850748b16ceb47e";
+    const int XgrOffset = 0xEB72;
+    static readonly byte[] XgrOrig = [0x0F, 0x84, 0xBB, 0xF6, 0xFF, 0xFF];
+    static readonly byte[] XgrPatch = [0x0F, 0x84, 0x1C, 0xFD, 0xFF, 0xFF];
 
     static readonly (string Name, string Sha)[] GdkDeps =
     [
@@ -117,6 +123,7 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
     public async Task EnsureSetupAsync(IProgress<double>? progress, CancellationToken ct)
     {
         Paths.Ensure();
+        PatchEngineXgameruntime();
         if (IsReady) { progress?.Report(1); return; }
         Directory.CreateDirectory(Pfx);
 
@@ -191,12 +198,57 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
     /// <summary>Engine changed: re-copy its builtin DLLs over the prefix's (saves live elsewhere and are untouched).</summary>
     void RefreshEngineDlls()
     {
+        PatchEngineXgameruntime();
         foreach (var (arch, dst) in new[] { ("x86_64-windows", "system32"), ("i386-windows", "syswow64") })
         {
             var to = Path.Combine(Pfx, "drive_c", "windows", dst);
             if (!Directory.Exists(EngineDlls(arch)) || !Directory.Exists(to)) continue;
             foreach (var f in Directory.EnumerateFiles(EngineDlls(arch)))
                 File.Copy(f, Path.Combine(to, Path.GetFileName(f)), true);
+        }
+    }
+
+    void PatchEngineXgameruntime()
+    {
+        try
+        {
+            var protonDir = new DirectoryInfo(engine.ProtonDir).ResolveLinkTarget(true)?.FullName ?? engine.ProtonDir;
+            PatchXgameruntime(Path.Combine(protonDir, "files", "lib", "wine", "x86_64-windows", "xgameruntime.dll"));
+        }
+        catch (Exception e)
+        {
+            LaunchLog.Phase($"xgameruntime patch: failed {e.Message}");
+        }
+    }
+
+    internal static void PatchXgameruntime(string target)
+    {
+        if (!File.Exists(target)) return;
+        target = new FileInfo(target).ResolveLinkTarget(true)?.FullName ?? target;
+        if (!File.Exists(target)) return;
+        var bytes = File.ReadAllBytes(target);
+        if (bytes.Length >= XgrOffset + XgrPatch.Length && bytes.AsSpan(XgrOffset, XgrPatch.Length).SequenceEqual(XgrPatch))
+        {
+            LaunchLog.Phase("xgameruntime patch: already applied");
+            return;
+        }
+        var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        if (sha != XgrSha || bytes.Length < XgrOffset + XgrOrig.Length || !bytes.AsSpan(XgrOffset, XgrOrig.Length).SequenceEqual(XgrOrig))
+        {
+            LaunchLog.Phase($"xgameruntime patch: unknown hash {sha}");
+            return;
+        }
+        XgrPatch.CopyTo(bytes.AsSpan(XgrOffset));
+        var tmp = target + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.WriteAllBytes(tmp, bytes);
+            File.Move(tmp, target, true);
+            LaunchLog.Phase("xgameruntime patch: applied");
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
         }
     }
 
