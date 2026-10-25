@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, flarial-ci, rajesh-gb-1]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LINUX_UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
