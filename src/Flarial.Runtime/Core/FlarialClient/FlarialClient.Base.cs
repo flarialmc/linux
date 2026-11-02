@@ -42,6 +42,9 @@ public abstract partial class FlarialClient
     private protected abstract Task<bool> VerifyAsync();
     private protected abstract Task<bool> OnDownloadAsync<T>(T progress) where T : IProgress<int>;
 
+    // Clients that only replace their cache after a verified download keep it on failure.
+    private protected virtual bool DeleteBeforeDownload => true;
+
     internal static string? AccessToken
     {
         set => Interlocked.Exchange(ref field, value);
@@ -56,6 +59,11 @@ public abstract partial class FlarialClient
         return json[HashName];
     }
 
+    private protected static bool HasCommitExport(string path, string hash)
+    {
+        return new ModificationLibrary(path).Open() is { } image && image.Exports.Contains($"_{hash}_");
+    }
+
     public static bool IsRunning => Platform.Platform.Injector.IsClientRunning;
 
     public async Task<bool> DownloadAsync<T>(T progress) where T : IProgress<int>
@@ -63,8 +71,11 @@ public abstract partial class FlarialClient
         if (await VerifyAsync())
             return true;
 
-        try { File.Delete(FileName); }
-        catch { return false; }
+        if (DeleteBeforeDownload)
+        {
+            try { File.Delete(FileName); }
+            catch { return false; }
+        }
 
         return await OnDownloadAsync(progress);
     }

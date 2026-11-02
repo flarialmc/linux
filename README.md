@@ -7,7 +7,7 @@ The Flarial Client launcher for Minecraft Bedrock Edition (Windows GDK build), r
 ## Features
 
 - Flarial OAuth sign-in
-- Release, Beta or Custom client DLL
+- Release, Beta, Alpha (v3) or Custom client DLL
 - Install, select and delete Minecraft Bedrock GDK versions, downloaded with your own Microsoft account
 - Xbox Live sign-in inside the game (friends, servers, Realms)
 - Wine/Proton engine and Wine prefix are downloaded and managed for you
